@@ -1,0 +1,29 @@
+[package]
+name = "kycdao-ntnft"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
+#near-contract-standards = "3.2.0"
+near-contract-standards = { path = "../../../near/near-sdk-rs/near-contract-standards" }
+near-sdk = { path = "../../../near/near-sdk-rs/near-sdk" }
+#near-sdk = "4.0.0-pre.7"
+#near-sdk = "3.1.0"
+
+[profile.release]
+codegen-units = 1
+# Tell `rustc` to optimize for small code size.
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+# Opt into extra safety checks on arithmetic operations https://stackoverflow.com/a/64136471/249801
+overflow-checks = true
+
+[workspace]
+members = []
