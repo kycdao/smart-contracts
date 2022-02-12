@@ -1,6 +1,6 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, LazyOption};
-use near_sdk::{env, near_bindgen, AccountId, PanicOnDefault, BorshStorageKey};
+use near_sdk::{env, near_bindgen, AccountId, PanicOnDefault, BorshStorageKey, Balance, Promise};
 use near_sdk::env::keccak256;
 use near_contract_standards::upgrade::Ownable;
 use near_contract_standards::ntnft::{Token, NTNFT, TokenId};
@@ -14,10 +14,17 @@ pub struct KycdaoNTNFT {
     metadata: LazyOption<NTNFTContractMetadata>,
     next_token_id: u128,
     mint_authorizer: AccountId,
-    signature_used: LookupMap<Vec<u8>, bool>, // Track if authorization signature has been used
+    authorized_token_metadata: LookupMap<Vec<u8>, TokenMetadata>, // Track if token minting is authorized, store metadata
 }
 
-const DATA_IMAGE_SVG_NEAR_ICON: &str = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 288 288'%3E%3Cg id='l' data-name='l'%3E%3Cpath d='M187.58,79.81l-30.1,44.69a3.2,3.2,0,0,0,4.75,4.2L191.86,103a1.2,1.2,0,0,1,2,.91v80.46a1.2,1.2,0,0,1-2.12.77L102.18,77.93A15.35,15.35,0,0,0,90.47,72.5H87.34A15.34,15.34,0,0,0,72,87.84V201.16A15.34,15.34,0,0,0,87.34,216.5h0a15.35,15.35,0,0,0,13.08-7.31l30.1-44.69a3.2,3.2,0,0,0-4.75-4.2L96.14,186a1.2,1.2,0,0,1-2-.91V104.61a1.2,1.2,0,0,1,2.12-.77l89.55,107.23a15.35,15.35,0,0,0,11.71,5.43h3.13A15.34,15.34,0,0,0,216,201.16V87.84A15.34,15.34,0,0,0,200.66,72.5h0A15.35,15.35,0,0,0,187.58,79.81Z'/%3E%3C/g%3E%3C/svg%3E";
+// TODO change this
+const DATA_IMAGE_SVG_ICON: &str = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 288 288'%3E%3Cg id='l' data-name='l'%3E%3Cpath d='M187.58,79.81l-30.1,44.69a3.2,3.2,0,0,0,4.75,4.2L191.86,103a1.2,1.2,0,0,1,2,.91v80.46a1.2,1.2,0,0,1-2.12.77L102.18,77.93A15.35,15.35,0,0,0,90.47,72.5H87.34A15.34,15.34,0,0,0,72,87.84V201.16A15.34,15.34,0,0,0,87.34,216.5h0a15.35,15.35,0,0,0,13.08-7.31l30.1-44.69a3.2,3.2,0,0,0-4.75-4.2L96.14,186a1.2,1.2,0,0,1-2-.91V104.61a1.2,1.2,0,0,1,2.12-.77l89.55,107.23a15.35,15.35,0,0,0,11.71,5.43h3.13A15.34,15.34,0,0,0,216,201.16V87.84A15.34,15.34,0,0,0,200.66,72.5h0A15.35,15.35,0,0,0,187.58,79.81Z'/%3E%3C/g%3E%3C/svg%3E";
+
+// TODO make this changeable
+// actually there's 2 different costs (KYC 2 USD, AccreditedInvestor 40 USD)
+const MINTING_COST: Balance = near_sdk::ONE_NEAR;
+
+// TODO get a NEAR-USD oracle
 
 #[derive(BorshSerialize, BorshStorageKey)]
 enum StorageKey {
@@ -25,7 +32,7 @@ enum StorageKey {
     Metadata,
     TokenMetadata,
     Enumeration,
-    SignatureUsed,
+    AuthorizedTokenMetadata,
 }
 
 #[near_bindgen]
@@ -36,9 +43,9 @@ impl KycdaoNTNFT {
         Self::new(
             NTNFTContractMetadata {
                 spec: NTNFT_METADATA_SPEC.to_string(),
-                name: "Example NEAR non-fungible token".to_string(),
-                symbol: "EXAMPLE".to_string(),
-                icon: Some(DATA_IMAGE_SVG_NEAR_ICON.to_string()),
+                name: "KycDAO Identity".to_string(),
+                symbol: "PEOPLE".to_string(),
+                icon: Some(DATA_IMAGE_SVG_ICON.to_string()),
                 base_uri: Some(base_uri),
                 reference: None,
                 reference_hash: None,
@@ -66,53 +73,49 @@ impl KycdaoNTNFT {
             metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
             next_token_id: 0,
             mint_authorizer: sender.to_owned(),
-            signature_used: LookupMap::new(StorageKey::SignatureUsed),
+            authorized_token_metadata: LookupMap::new(StorageKey::AuthorizedTokenMetadata),
         }
     }
 
     /*****************
     Authorized Minting
     *****************/
-    /// @dev Mint the token by using a signature from an authorized minter
+    /// @dev Mint the token by using a nonce from an authorized account
     #[payable]
-    pub fn mint(&mut self, nonce: u128, signature: &[u8]) -> Token {
+    pub fn mint(&mut self, nonce: u128) -> Token {
         let contract_addr = env::current_account_id();
-        let dst: AccountId = env::signer_account_id().try_into().expect("Invalid Account ID");
-        let digest = keccak256(format!("{}{}{}", nonce, dst, contract_addr).as_bytes());
+        let dst = env::predecessor_account_id();
 
-        // verify auth was signed by owner of token ID
-        self.verify(&digest, signature);
+        let attached_deposit = env::attached_deposit();
+        assert!(attached_deposit > MINTING_COST, "Please attach a minting cost of {} yoctoNEAR", MINTING_COST);
 
-        let used_opt = self.signature_used.get(&digest);
-        match used_opt {
-            Some(used) => assert!(!used, "signature already used"),
-            None => panic!("unknown signature"),
-        }
+        // TODO are we sending it to the owner? or to a separate treasury?
+        // what's the default behaviour for unspent attached deposit?
+        Promise::new(self.tokens.owner_id.to_owned()).transfer(MINTING_COST);
 
-        // Mark signature as used so we cannot use it again
-        self.signature_used.insert(&digest, &true);
+        let digest = keccak256(format!("{}{}{}", dst, nonce, contract_addr).as_bytes());
+
+        // Get prefilled metadata, also remove signature so it cannot be used again
+        let metadata = self.authorized_token_metadata.remove(&digest).expect("Unauthorized nonce");
 
         let token_id = self.next_token_id;
-        self.next_token_id = self.next_token_id.checked_add(1).expect("token ID overflow");
+        self.next_token_id = self.next_token_id.checked_add(1).expect("Token ID overflow");
         let token_id_str = token_id.to_string();
 
-        let metadata = None; // TODO where will this come from? Should `authorize_minting` prefill and store this?
-
-        // TODO refund is disabled, because it would send back any unused money, but we have to deduct the minting fee first!
-        let refund_to: Option<AccountId> = None;
-        self.tokens.internal_mint_with_refund(token_id_str, dst, metadata, refund_to)
+        self.tokens.internal_mint(token_id_str, dst, Some(metadata), Some(MINTING_COST))
     }
 
+    // TODO this has a storage cost!
     /// @dev Mint the token by authorized minter contract or EOA
-    pub fn authorize_minting(&mut self, nonce: u128, dst: AccountId) {
+    pub fn authorize_minting(&mut self, nonce: u128, dst: AccountId, metadata: TokenMetadata) {
         self.assert_mint_authorizer();
         let contract_addr = env::current_account_id();
-        let digest = keccak256(format!("{}{}{}", nonce, dst, contract_addr).as_bytes());
+        let digest = keccak256(format!("{}{}{}", dst, nonce, contract_addr).as_bytes());
 
-        let used_opt = self.signature_used.get(&digest);
-        assert!(used_opt.is_none(), "signature already authorized");
+        let used_opt = self.authorized_token_metadata.get(&digest);
+        assert!(used_opt.is_none(), "Nonce already authorized");
 
-        self.signature_used.insert(&digest, &false);
+        self.authorized_token_metadata.insert(&digest, &metadata);
     }
 
     /*****************
@@ -129,13 +132,11 @@ impl KycdaoNTNFT {
         format!("{}/{}.json", base_uri, token_metadata.extra.expect("Missing token extra data"))
     }
 
-    // TODO supportsInterface - what is this?
-
     /*****************
     Config
     *****************/
-    /// @notice Set new base URI for token IDs
-    /// @param base_uri String to prepend to token IDs
+    /// @notice Set new base URI for references
+    /// @param base_uri String to prepend references
     pub fn set_base_uri(&mut self, base_uri: String) {
         self.assert_owner();
         let mut metadata = self.metadata.get().expect("Metadata not supported");
@@ -145,12 +146,6 @@ impl KycdaoNTNFT {
     /*****************
     HELPERS
     *****************/
-    fn verify(&self, digest: &[u8], signature: &[u8]) {
-        // TODO match stuff
-        //digest.toEthSignedMessageHash().recover(signature)
-        panic!("Invalid authorization")
-    }
-
     fn assert_mint_authorizer(&self) {
         assert_eq!(env::predecessor_account_id(), self.get_mint_authorizer());
     }
@@ -194,7 +189,8 @@ mod tests {
     use near_sdk::{testing_env};
     use near_sdk::test_utils::{accounts, VMContextBuilder};
 
-    const MINT_STORAGE_COST: u128 = 5870000000000000000000;
+    const MINT_STORAGE_COST: u128 = 6080000000000000000000;
+    const MINT_COST: u128 = near_sdk::ONE_NEAR;
 
     fn get_context(predecessor_account_id: AccountId) -> VMContextBuilder {
         let mut builder = VMContextBuilder::new();
@@ -205,7 +201,7 @@ mod tests {
         builder
     }
 
-    /*fn sample_token_metadata() -> TokenMetadata {
+    fn sample_token_metadata(extra: String) -> TokenMetadata {
         TokenMetadata {
             title: Some("Olympus Mons".into()),
             description: Some("The tallest mountain in the charted solar system".into()),
@@ -216,11 +212,11 @@ mod tests {
             expires_at: None,
             starts_at: None,
             updated_at: None,
-            extra: None,
+            extra: Some(extra),
             reference: None,
             reference_hash: None,
         }
-    }*/
+    }
 
     #[test]
     fn test_new() {
@@ -249,23 +245,53 @@ mod tests {
     }
 
     #[test]
-    fn test_authorize_minting() {
-        let mut context = get_context(accounts(0));
+    fn test_authorized_minting() {
+        let mut context = get_context(accounts(1));
         testing_env!(context.build());
-        let mut contract = KycdaoNTNFT::new_default_meta(accounts(0).into());
+        let mut contract = KycdaoNTNFT::new_default_meta("base".to_string());
+
+        contract.authorize_minting(123, accounts(2), sample_token_metadata("somehash".to_string()));
+        contract.authorize_minting(365, accounts(2), sample_token_metadata("othersomehash".to_string()));
 
         testing_env!(context
             .storage_usage(env::storage_usage())
-            .attached_deposit(MINT_STORAGE_COST)
-            .predecessor_account_id(accounts(0))
+            .attached_deposit(MINT_STORAGE_COST + MINT_COST)
+            .signer_account_id(accounts(2))
+            .predecessor_account_id(accounts(2))
             .build());
 
-        contract.authorize_minting(123, accounts(0)/*, sample_token_metadata()*/);
-
-        let token = contract.mint(123, &[0, 1, 2]);
+        let token = contract.mint(365);
         assert_eq!(token.token_id, "0".to_string());
-        assert_eq!(token.owner_id, accounts(0));
-        //assert_eq!(token.metadata.unwrap(), sample_token_metadata());
-        assert!(token.metadata.is_none());
+        assert_eq!(token.owner_id, accounts(2));
+        assert_eq!(token.metadata.unwrap(), sample_token_metadata("othersomehash".to_string()));
+
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(MINT_STORAGE_COST + MINT_COST)
+            .signer_account_id(accounts(2))
+            .predecessor_account_id(accounts(2))
+            .build());
+
+        let token = contract.mint(123);
+        assert_eq!(token.token_id, "1".to_string());
+        assert_eq!(token.owner_id, accounts(2));
+        assert_eq!(token.metadata.unwrap(), sample_token_metadata("somehash".to_string()));
+    }
+
+    #[test]
+    #[should_panic(expected = "Unauthorized nonce")]
+    fn test_unauthorized_minting() {
+        let mut context = get_context(accounts(1));
+        testing_env!(context.build());
+        let mut contract = KycdaoNTNFT::new_default_meta("base".to_string());
+
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(MINT_STORAGE_COST + MINT_COST)
+            .signer_account_id(accounts(2))
+            .predecessor_account_id(accounts(2))
+            .build());
+
+        contract.mint(123);
     }
 }
