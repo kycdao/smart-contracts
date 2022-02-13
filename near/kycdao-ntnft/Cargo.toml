@@ -10,8 +10,10 @@ crate-type = ["cdylib", "rlib"]
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 #near-contract-standards = "3.2.0"
-near-contract-standards = { path = "../../../near/near-sdk-rs/near-contract-standards" }
-near-sdk = { path = "../../../near/near-sdk-rs/near-sdk" }
+#near-contract-standards = { path = "../../../near/near-sdk-rs/near-contract-standards" }
+near-contract-standards = { git = "https://github.com/kycdao/near-sdk-rs", branch = "ntnft" }
+#near-sdk = { path = "../../../near/near-sdk-rs/near-sdk" }
+near-sdk = { git = "https://github.com/kycdao/near-sdk-rs", branch = "ntnft" }
 #near-sdk = "4.0.0-pre.7"
 #near-sdk = "3.1.0"
 

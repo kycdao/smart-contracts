@@ -539,6 +539,7 @@ dependencies = [
 [[package]]
 name = "near-contract-standards"
 version = "4.0.0-pre.5"
+source = "git+https://github.com/kycdao/near-sdk-rs?branch=ntnft#bdbeb82dd8b1a0e81c01b21eb49922b59f5d50e9"
 dependencies = [
  "near-sdk",
 ]
@@ -649,6 +650,7 @@ dependencies = [
 [[package]]
 name = "near-sdk"
 version = "4.0.0-pre.5"
+source = "git+https://github.com/kycdao/near-sdk-rs?branch=ntnft#bdbeb82dd8b1a0e81c01b21eb49922b59f5d50e9"
 dependencies = [
  "base64 0.13.0",
  "borsh",
@@ -665,6 +667,7 @@ dependencies = [
 [[package]]
 name = "near-sdk-macros"
 version = "4.0.0-pre.5"
+source = "git+https://github.com/kycdao/near-sdk-rs?branch=ntnft#bdbeb82dd8b1a0e81c01b21eb49922b59f5d50e9"
 dependencies = [
  "Inflector",
  "proc-macro2",
@@ -675,6 +678,7 @@ dependencies = [
 [[package]]
 name = "near-sys"
 version = "0.1.0"
+source = "git+https://github.com/kycdao/near-sdk-rs?branch=ntnft#bdbeb82dd8b1a0e81c01b21eb49922b59f5d50e9"
 
 [[package]]
 name = "near-vm-errors"
