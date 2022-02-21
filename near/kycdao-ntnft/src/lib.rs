@@ -83,7 +83,6 @@ impl KycdaoNTNFT {
     /// @dev Mint the token by using a nonce from an authorized account
     #[payable]
     pub fn mint(&mut self, nonce: u128) -> Token {
-        let contract_addr = env::current_account_id();
         let dst = env::predecessor_account_id();
 
         let attached_deposit = env::attached_deposit();
@@ -93,9 +92,9 @@ impl KycdaoNTNFT {
         // what's the default behaviour for unspent attached deposit?
         Promise::new(self.tokens.owner_id.to_owned()).transfer(MINTING_COST);
 
-        let digest = keccak256(format!("{}{}{}", dst, nonce, contract_addr).as_bytes());
+        let digest = KycdaoNTNFT::get_digest(nonce, &dst);
 
-        // Get prefilled metadata, also remove signature so it cannot be used again
+        // Get prefilled metadata, also remove digest so it cannot be used again
         let metadata = self.authorized_token_metadata.remove(&digest).expect("Unauthorized nonce");
 
         let token_id = self.next_token_id;
@@ -106,14 +105,13 @@ impl KycdaoNTNFT {
     }
 
     // TODO this has a storage cost!
-    /// @dev Mint the token by authorized minter contract or EOA
+    /// @dev Authorize the minting of a new token
     pub fn authorize_minting(&mut self, nonce: u128, dst: AccountId, metadata: TokenMetadata) {
         self.assert_mint_authorizer();
-        let contract_addr = env::current_account_id();
-        let digest = keccak256(format!("{}{}{}", dst, nonce, contract_addr).as_bytes());
+        let digest = KycdaoNTNFT::get_digest(nonce, &dst);
 
-        let used_opt = self.authorized_token_metadata.get(&digest);
-        assert!(used_opt.is_none(), "Nonce already authorized");
+        let authorized_opt = self.authorized_token_metadata.get(&digest);
+        assert!(authorized_opt.is_none(), "Nonce already authorized");
 
         self.authorized_token_metadata.insert(&digest, &metadata);
     }
@@ -146,6 +144,11 @@ impl KycdaoNTNFT {
     /*****************
     HELPERS
     *****************/
+    fn get_digest(nonce: u128, dst: &AccountId) -> Vec<u8> {
+        let contract_addr = env::current_account_id();
+        keccak256(format!("{}{}{}", nonce, dst, contract_addr).as_bytes())
+    }
+
     fn assert_mint_authorizer(&self) {
         assert_eq!(env::predecessor_account_id(), self.get_mint_authorizer());
     }

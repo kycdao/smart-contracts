@@ -12,6 +12,8 @@ interface IERC721NT {
     function ownerOf(uint256 tokenId) external view returns (address owner);
 }
 
+// TODO finish this
+
 contract NTConsumerExample {
     using ECDSA for bytes32; /*ECDSA for signature recovery for license mints*/
     address signer;
@@ -34,7 +36,7 @@ contract NTConsumerExample {
         _;
     }
 
-    // GET kycdao.io/signatuers/tokenId
+    // GET kycdao.io/signatures/tokenId
 
     function validate(
         uint256 _tokenId,

@@ -64,44 +64,32 @@ describe.only('KycdaoNtnft Membership', function () {
   })
 
   describe('minting', function () {
-    // it('verify deployment parameters', async function () {})
-
     describe('mint  admin', function () {
-      it('Allows minter to mint a token ', async function () {
-        await memberNftAsMinter.mintAdmin(anyone.address)
-        expect(await memberNft.balanceOf(anyone.address)).to.equal(1)
+      it('Authorize minter to mint a token ', async function () {
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "uid1234")
+        expect(await memberNft.balanceOf(anyone.address)).to.equal(0)
       })
     })
 
-    describe('mint  with signature', function () {
-      it('Allows minter to mint a token ', async function () {
-        const msgHash = ethers.utils.arrayify(
-          ethers.utils.solidityKeccak256(['uint256', 'address', 'address'], [1, anyone.address, memberNft.address])
-        )
-        const sig = await author.signMessage(msgHash)
-        await memberNftAsAnyone.mint(1, sig)
+    describe('mint  with nonce', function () {
+      it('Mint a token ', async function () {
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "uid1234")
+        await memberNftAsAnyone.mint(456)
         expect(await memberNft.balanceOf(anyone.address)).to.equal(1)
+        expect(await memberNft.tokenURI(1), "someuri/uid1234")
       })
 
-      it('Fails if sig used twice', async function () {
-        const msgHash = 
-          ethers.utils.arrayify(ethers.utils.solidityKeccak256(['uint256', 'address', 'address'], [1, anyone.address, memberNft.address]))
-        const sig = await author.signMessage(msgHash)
-        await memberNftAsAnyone.mint(1, sig)
-        expect(memberNftAsAnyone.mint(1, sig)).to.be.revertedWith('signature already used')
-      })
-
-      it('Fails if signer not authorized', async function () {
-        const msgHash = 
-          ethers.utils.arrayify(ethers.utils.solidityKeccak256(['uint256', 'address', 'address'], [1, anyone.address, memberNft.address]))
-        const sig = await author.signMessage(msgHash)
-        await memberNft.revokeRole(minterRole, author.address)
-        expect(memberNftAsAnyone.mint(1, sig)).to.be.revertedWith('invalid authorization')
+      it('Fails if mint used twice', async function () {
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "uid1234")
+        await memberNftAsAnyone.mint(456)
+        expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('unauthorized nonce')
       })
     })
+
     describe('no transfers', function () {
-      it('Does not allow tokens ot be transfered', async function () {
-        await memberNftAsMinter.mintAdmin(anyone.address)
+      it('Does not allow tokens to be transferred', async function () {
+        await memberNftAsMinter.authorizeMinting(123, anyone.address, "uidasd")
+        await memberNftAsAnyone.mint(123)
         expect(memberNftAsAnyone.transferFrom(anyone.address, author.address, 1)).to.be.revertedWith('Not transferable!')
       })
     })
@@ -110,6 +98,8 @@ describe.only('KycdaoNtnft Membership', function () {
 
 describe.only('KycdaoNTNFT Memberships Consumer', function () {
   let memberNft: KycdaoNtnft
+  let memberNftAsMinter: KycdaoNtnft
+  let memberNftAsHolder: KycdaoNtnft
   let consumer: NtConsumerExample
 
   let consumerAsHolder: NtConsumerExample
@@ -138,6 +128,12 @@ describe.only('KycdaoNTNFT Memberships Consumer', function () {
   beforeEach(async function () {
     const memberNftAbstract = (await MemberNft.deploy('test', 'TEST', 'someuri')) as KycdaoNtnft
     memberNft = await memberNftAbstract.connect(deployer)
+    memberNftAsMinter = await memberNftAbstract.connect(minter)
+    memberNftAsHolder = await memberNftAbstract.connect(holder)
+
+    await memberNft.grantRole(minterRole, minter.address)
+    await memberNft.grantRole(minterRole, author.address)
+    memberNft = await memberNftAbstract.connect(deployer)
 
     await memberNft.grantRole(minterRole, minter.address)
     await memberNft.grantRole(minterRole, author.address)
@@ -151,7 +147,8 @@ describe.only('KycdaoNTNFT Memberships Consumer', function () {
 
     describe('consumer', function () {
       it('Allows holder to access function that requires validation', async function () {
-        await memberNft.mintAdmin(holder.address)
+        await memberNft.authorizeMinting(1234, holder.address, "asd")
+        await memberNftAsHolder.mint(1234)
         expect(await memberNft.balanceOf(holder.address)).to.equal(1)
 
         const currBlockTime = await blockTime()

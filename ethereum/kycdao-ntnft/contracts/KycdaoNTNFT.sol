@@ -22,9 +22,11 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant OWNER_ROLE = keccak256("OWNER_ROLE");
 
-    string public baseURI; /*baseURI_ String to prepend to token IDs*/
+    string public baseURI; /*baseURI_ String to prepend to metadata URIs*/
 
-    mapping(bytes32 => bool) public signatureUsed; /* track if authorization signature has been used */
+    mapping(uint256 => string) private tokenMetadata;
+
+    mapping(bytes32 => string) public authorizedMetadata; /* Track if token minting is authorized, store metadata */
 
     /// @dev Constructor sets the token metadata and the roles
     /// @param name_ Token name
@@ -42,27 +44,34 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
     }
 
     /*****************
-    Permissioned Minting
+    Authorized Minting
     *****************/
-    /// @dev Mint the token for using a signature from an authorized minter
-    function mint(uint256 _nonce, bytes memory _signature) external {
+    /// @dev Mint the token by using a nonce from an authorized account
+    function mint(uint128 _nonce) external {
         address _dst = msg.sender;
-        bytes32 _digest = keccak256(
-            abi.encodePacked(_nonce, _dst, address(this))
-        );
-        require(!signatureUsed[_digest], "signature already used");
-        signatureUsed[_digest] = true; /*Mark signature as used so we cannot use it again*/
-        require(
-            _verify(_digest, _signature, MINTER_ROLE),
-            "invalid authorization"
-        ); // verify auth was signed by owner of token ID 1
+        bytes32 _digest = _getDigest(_nonce, _dst);
+
+        // get and remove metadata
+        string memory _metadata = authorizedMetadata[_digest];
+        require(bytes(_metadata).length != 0, "unauthorized nonce");
+        delete authorizedMetadata[_digest];
+
+        // Mint token
         _mintInternal(_dst);
+
+        // Store token metadata
+        uint256 _id = _tokenIds.current();
+        tokenMetadata[_id] = _metadata;
     }
 
-    /// @dev Mint the token by authorized minter contract or EOA
-    function mintAdmin(address _dst) external {
+    /// @dev Authorize the minting of a new token
+    function authorizeMinting(uint128 _nonce, address _dst, string memory _metadata) external {
         require(hasRole(MINTER_ROLE, msg.sender), "!minter");
-        _mintInternal(_dst);
+        bytes32 _digest = _getDigest(_nonce, _dst);
+
+        string memory _old_metadata = authorizedMetadata[_digest];
+        require(bytes(_old_metadata).length == 0, "Nonce already authorized");
+        authorizedMetadata[_digest] = _metadata;
     }
 
     /*****************
@@ -80,10 +89,10 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
         );
 
         string memory uri = _baseURI();
-        // TODO use metadata instead of tokenID
+        string memory metadata = tokenMetadata[tokenId];
         return
             bytes(uri).length > 0
-                ? string(abi.encodePacked(uri, tokenId.toString(), ".json"))
+                ? string(abi.encodePacked(uri, metadata))
                 : "";
     }
 
@@ -112,8 +121,12 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
     }
 
     /*****************
-    INTERNAL MINTING FUNCTIONS AND HELPERS
+    HELPERS
     *****************/
+    function _getDigest(uint128 _nonce, address _dst) internal view returns (bytes32) {
+        return keccak256(abi.encodePacked(_nonce, _dst, address(this)));
+    }
+
     /// @notice internal helper to retrieve private base URI for token URI construction
     function _baseURI() internal view override returns (string memory) {
         return baseURI;
@@ -132,18 +145,6 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
         uint256 _id = _tokenIds.current();
 
         _safeMint(_dst, _id);
-    }
-
-    /// @dev Internal util to confirm seed sig
-    /// @param data Message hash
-    /// @param signature Sig from primary token holder
-    /// @param role Role recovered address should have
-    function _verify(
-        bytes32 data,
-        bytes memory signature,
-        bytes32 role
-    ) internal view returns (bool) {
-        return hasRole(role, data.toEthSignedMessageHash().recover(signature));
     }
 
     /// @dev Internal hook to disable all transfers
