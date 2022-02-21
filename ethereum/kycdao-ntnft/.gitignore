@@ -1,0 +1,11 @@
+node_modules
+src/types/*
+artifacts/*
+cache/*
+*.txt
+sample
+coverage
+.solcover.js
+flat.sol
+coverage.json
+
