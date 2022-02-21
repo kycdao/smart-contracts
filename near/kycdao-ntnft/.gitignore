@@ -3,6 +3,7 @@ target
 .cache
 .parcel-cache
 dist
+res
 
 # IDE
 .idea
