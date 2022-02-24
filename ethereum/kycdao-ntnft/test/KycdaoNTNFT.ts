@@ -49,7 +49,7 @@ describe.only('KycdaoNtnft Membership', function () {
     const provider = ethers.provider
     author = await adminAbstract.connect(provider)
 
-    await deployer.sendTransaction({ to: author.address, value: ethers.utils.parseEther('10') })
+    //await deployer.sendTransaction({ to: author.address, value: ethers.utils.parseEther('10') })
     MemberNft = await ethers.getContractFactory('KycdaoNTNFT')
   })
 
@@ -61,6 +61,16 @@ describe.only('KycdaoNtnft Membership', function () {
 
     await memberNft.grantRole(minterRole, minter.address)
     await memberNft.grantRole(minterRole, author.address)
+  })
+
+  describe('price info', function () {
+    describe('get kyc price', function () {
+      it('Get price of KYC', async function () {
+        let price = await memberNftAsAnyone.priceKycWei();
+        console.log("KYC Price in Wei: " + price.toString());
+        //expect(price).to.be.greaterThan(500000000000)
+      })
+    })
   })
 
   describe('minting', function () {
@@ -120,7 +130,7 @@ describe.only('KycdaoNTNFT Memberships Consumer', function () {
     const provider = ethers.provider
     author = await adminAbstract.connect(provider)
 
-    await deployer.sendTransaction({ to: author.address, value: ethers.utils.parseEther('10') })
+    //await deployer.sendTransaction({ to: author.address, value: ethers.utils.parseEther('10') })
     MemberNft = await ethers.getContractFactory('KycdaoNTNFT')
     Consumer = await ethers.getContractFactory('NTConsumerExample')
   })
