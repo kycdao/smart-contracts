@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
-import "hardhat/console.sol";
 
 /// @title KycdaoNTNFT
 /// @dev Non-transferable NFT for KycDAO
@@ -146,9 +145,10 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
     /// @dev Internal hook to disable all transfers
     function _beforeTokenTransfer(
         address from,
-        address /*to*/,
-        uint256 /*tokenId*/
-    ) pure internal override(ERC721Enumerable) {
+        address to,
+        uint256 tokenId
+    ) internal override(ERC721Enumerable) {
         require(from == address(0), "Not transferable!");
+        super._beforeTokenTransfer(from, to, tokenId);
     }
 }

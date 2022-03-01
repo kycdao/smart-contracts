@@ -79,6 +79,19 @@ describe.only('KycdaoNtnft Membership', function () {
         expect(await memberNft.tokenURI(1), "someuri/uid1234")
       })
 
+      it('Updates total supply ', async function () {
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "uid1234")
+        await memberNftAsAnyone.mint(456)
+        expect(await memberNft.totalSupply()).to.equal(1)
+      })
+
+      it('Allows enumeration ', async function () {
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "uid1234")
+        await memberNftAsAnyone.mint(456)
+        expect(await memberNft.tokenOfOwnerByIndex(anyone.address, 0)).to.equal(1)
+        expect(await memberNft.tokenByIndex(0)).to.equal(1)
+      })
+
       it('Fails if mint used twice', async function () {
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "uid1234")
         await memberNftAsAnyone.mint(456)
