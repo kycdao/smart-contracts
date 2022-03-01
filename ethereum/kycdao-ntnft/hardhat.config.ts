@@ -58,6 +58,12 @@ const config: HardhatUserConfig = {
         mnemonic: mnemonic(),
       },
     },
+    mumbai: {
+      url: 'https://rpc-mumbai.maticvigil.com/',
+      accounts: {
+        mnemonic: mnemonic(),
+      },      
+    },
     xdai: {
       url: 'https://rpc.xdaichain.com/',
       gasPrice: 1000000000,
