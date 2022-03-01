@@ -1,5 +1,5 @@
 {
-  "name": "baal",
+  "name": "kycdao-nt-nft",
   "version": "1.0.0",
   "description": "Lo, also it is the time of His rain.",
   "main": "index.js",
@@ -9,15 +9,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/HausDAO/Baal.git"
+    "url": "git+https://github.com/kycdao/smart-contracts.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/HausDAO/Baal/issues"
+    "url": "hhttps://github.com/kycdao/smart-contracts/issues"
   },
-  "homepage": "https://github.com/HausDAO/Baal#readme",
+  "homepage": "https://github.com/kycdao/smart-contracts",
   "devDependencies": {
     "@chainlink/contracts": "^0.4.0",
     "@gnosis.pm/safe-contracts": "^1.3.0",

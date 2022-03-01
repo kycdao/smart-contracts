@@ -63,16 +63,6 @@ describe.only('KycdaoNtnft Membership', function () {
     await memberNft.grantRole(minterRole, author.address)
   })
 
-  describe('price info', function () {
-    describe('get kyc price', function () {
-      it('Get price of KYC', async function () {
-        let price = await memberNftAsAnyone.priceKycWei();
-        console.log("KYC Price in Wei: " + price.toString());
-        //expect(price).to.be.greaterThan(500000000000)
-      })
-    })
-  })
-
   describe('minting', function () {
     describe('mint  admin', function () {
       it('Authorize minter to mint a token ', async function () {
