@@ -64,6 +64,12 @@ const config: HardhatUserConfig = {
         mnemonic: mnemonic(),
       },      
     },
+    fuji: {
+      url: 'https://api.avax-test.network/ext/bc/C/rpc',
+      accounts: {
+        mnemonic: mnemonic(),
+      },      
+    },    
     xdai: {
       url: 'https://rpc.xdaichain.com/',
       gasPrice: 1000000000,
