@@ -1,15 +1,13 @@
-import { HardhatUserConfig, task } from 'hardhat/config'
-import '@openzeppelin/test-helpers'
-import '@nomiclabs/hardhat-waffle'
-import '@nomiclabs/hardhat-ethers'
-import 'hardhat-gas-reporter'
-import '@nomiclabs/hardhat-etherscan'
-import 'solidity-coverage'
-import 'hardhat-typechain'
+require('@openzeppelin/test-helpers')
+require('@nomiclabs/hardhat-waffle')
+require('@nomiclabs/hardhat-ethers')
+require('hardhat-gas-reporter')
+require('@nomiclabs/hardhat-etherscan')
+require('solidity-coverage')
+require('hardhat-typechain')
 
-import * as fs from 'fs'
+require ('fs')
 const defaultNetwork = 'localhost'
-let blah
 
 function mnemonic() {
   try {
@@ -22,10 +20,7 @@ function mnemonic() {
   return ''
 }
 
-/**
- * @type import('hardhat/config').HardhatUserConfig
- */
-const config: HardhatUserConfig = {
+module.exports = {
   solidity: {
     compilers: [
       {
@@ -85,8 +80,16 @@ const config: HardhatUserConfig = {
   etherscan: {
     // Your API key for Etherscan
     // Obtain one at https://etherscan.io/
-    apiKey: '61ED96HQAY6PASTEWRXN6AMYQEKM8SYTRY', // etherscan
+    apiKey: {
+      // Eth and test nets (using etherscan)
+      mainnet: "ETHERSCAN_API_KEY",
+      ropsten: "ETHERSCAN_API_KEY",
+      rinkeby: "ETHERSCAN_API_KEY",
+      goerli: "ETHERSCAN_API_KEY",
+      kovan: "ETHERSCAN_API_KEY",
+      // Polygon and mumbai testnet (using polygonscan) 
+      polygon: "POLYGONSCAN_API_KEY",
+      polygonMumbai: "POLYGONSCAN_API_KEY",           
+    }
   },
 }
-
-export default config
