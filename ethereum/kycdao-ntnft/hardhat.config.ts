@@ -1,8 +1,7 @@
-import { HardhatUserConfig } from 'hardhat/config'
+import { HardhatUserConfig, task } from 'hardhat/config'
 import '@openzeppelin/test-helpers'
 import '@nomiclabs/hardhat-waffle'
 import '@nomiclabs/hardhat-ethers'
-import '@nomiclabs/hardhat-web3'
 import 'hardhat-gas-reporter'
 import '@nomiclabs/hardhat-etherscan'
 import 'solidity-coverage'
@@ -10,6 +9,7 @@ import 'hardhat-typechain'
 
 import * as fs from 'fs'
 const defaultNetwork = 'localhost'
+let blah
 
 function mnemonic() {
   try {
@@ -88,5 +88,11 @@ const config: HardhatUserConfig = {
     apiKey: '61ED96HQAY6PASTEWRXN6AMYQEKM8SYTRY', // etherscan
   },
 }
+
+task("testicle", "A test task")
+  .setAction(async (taskArgs, hre) => {
+    console.log("hi there")
+    blah = 1
+  })
 
 export default config
