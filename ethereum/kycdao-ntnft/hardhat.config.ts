@@ -89,10 +89,4 @@ const config: HardhatUserConfig = {
   },
 }
 
-task("testicle", "A test task")
-  .setAction(async (taskArgs, hre) => {
-    console.log("hi there")
-    blah = 1
-  })
-
 export default config
