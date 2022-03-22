@@ -30,9 +30,13 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
     mapping(uint256 => string) private tokenMetadataCIDs; /* Metadata CIDs per token */
     mapping(uint256 => string) private tokenVerificationPaths; /* Verification paths per token */
 
+    uint public sendGasOnAuthorization = 0;
+
     /// @dev Constructor sets the contract metadata and the roles
     /// @param name_ Token name
     /// @param symbol_ Token symbol
+    /// @param metadataBaseURI_ Base URI for metadata CIDs
+    /// @param verificationDataBaseURI_ Base URI for verification paths
     constructor(
         string memory name_,
         string memory symbol_,
@@ -82,6 +86,11 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
         require(bytes(_old_metadata).length == 0, "Code already authorized");
         authorizedMetadataCIDs[_digest] = _metadata_cid;
         authorizedVerificationPaths[_digest] = _verification_path;
+
+        if (sendGasOnAuthorization > 0) {
+            (bool sent, ) = _dst.call{value: sendGasOnAuthorization}("");
+            require(sent, "Failed to send Ether");
+        }
     }
 
     /*****************
@@ -139,6 +148,14 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
     }
 
     /*****************
+    Payment
+    *****************/
+
+    ///@dev fallback function to accept any payment
+    receive() external payable {
+    }
+
+    /*****************
     Config
     *****************/
     /// @notice Set new base URI for token metadata CIDs
@@ -153,6 +170,13 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
     function setVerificationBaseURI(string memory baseURI_) external {
         require(hasRole(OWNER_ROLE, msg.sender), "!owner");
         _setVerificationBaseURI(baseURI_);
+    }
+
+    /// @notice Set the amount of gas to be sent after mint authorization
+    /// @param value_ uint WEI to send
+    function setSendGasOnAuthorization(uint value_) external {
+        require(hasRole(OWNER_ROLE, msg.sender), "!owner");
+        sendGasOnAuthorization = value_;
     }
 
     /*****************
