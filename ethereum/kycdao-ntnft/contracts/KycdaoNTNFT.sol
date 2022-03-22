@@ -49,16 +49,16 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
     /*****************
     Authorized Minting
     *****************/
-    /// @dev Mint the token by using a nonce from an authorized account
-    function mint(uint128 _nonce) external payable {
+    /// @dev Mint the token by using an authorization code from an authorized account
+    function mint(uint128 _auth_code) external payable {
         address _dst = msg.sender;
-        bytes32 _digest = _getDigest(_nonce, _dst);
+        bytes32 _digest = _getDigest(_auth_code, _dst);
 
         // get and remove authorized metadata CID and verification path
         string memory _metadata_cid = authorizedMetadataCIDs[_digest];
-        require(bytes(_metadata_cid).length != 0, "unauthorized nonce");
+        require(bytes(_metadata_cid).length != 0, "Unauthorized code");
         string memory _verification_path = authorizedVerificationPaths[_digest];
-        require(bytes(_verification_path).length != 0, "unauthorized nonce");
+        require(bytes(_verification_path).length != 0, "Unauthorized code");
 
         delete authorizedMetadataCIDs[_digest];
         delete authorizedVerificationPaths[_digest];
@@ -74,12 +74,12 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
     }
 
     /// @dev Authorize the minting of a new token
-    function authorizeMinting(uint128 _nonce, address _dst, string memory _metadata_cid, string memory _verification_path) external {
+    function authorizeMinting(uint128 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path) external {
         require(hasRole(MINTER_ROLE, msg.sender), "!minter");
-        bytes32 _digest = _getDigest(_nonce, _dst);
+        bytes32 _digest = _getDigest(_auth_code, _dst);
 
         string memory _old_metadata = authorizedMetadataCIDs[_digest];
-        require(bytes(_old_metadata).length == 0, "Nonce already authorized");
+        require(bytes(_old_metadata).length == 0, "Code already authorized");
         authorizedMetadataCIDs[_digest] = _metadata_cid;
         authorizedVerificationPaths[_digest] = _verification_path;
     }
@@ -158,8 +158,8 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
     /*****************
     HELPERS
     *****************/
-    function _getDigest(uint128 _nonce, address _dst) internal view returns (bytes32) {
-        return keccak256(abi.encodePacked(_nonce, _dst, address(this)));
+    function _getDigest(uint128 _auth_code, address _dst) internal view returns (bytes32) {
+        return keccak256(abi.encodePacked(_auth_code, _dst, address(this)));
     }
 
     /// @notice internal helper to retrieve private base URI for token URI construction
