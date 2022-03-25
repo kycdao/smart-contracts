@@ -8,4 +8,4 @@ coverage
 .solcover.js
 flat.sol
 coverage.json
-
+.env
