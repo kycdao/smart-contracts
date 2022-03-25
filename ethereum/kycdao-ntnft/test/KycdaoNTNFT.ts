@@ -54,7 +54,7 @@ describe.only('KycdaoNtnft Membership', function () {
   })
 
   beforeEach(async function () {
-    const memberNftAbstract = (await MemberNft.deploy('test', 'TEST', 'someuri')) as KycdaoNtnft
+    const memberNftAbstract = (await MemberNft.deploy('test', 'TEST', 'metadataURI', 'verificationURI')) as KycdaoNtnft
     memberNft = await memberNftAbstract.connect(deployer)
     memberNftAsMinter = await memberNftAbstract.connect(minter)
     memberNftAsAnyone = await memberNftAbstract.connect(anyone)
@@ -66,42 +66,42 @@ describe.only('KycdaoNtnft Membership', function () {
   describe('minting', function () {
     describe('mint  admin', function () {
       it('Authorize minter to mint a token ', async function () {
-        await memberNftAsMinter.authorizeMinting(456, anyone.address, "uid1234")
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234")
         expect(await memberNft.balanceOf(anyone.address)).to.equal(0)
       })
     })
 
     describe('mint  with nonce', function () {
       it('Mint a token ', async function () {
-        await memberNftAsMinter.authorizeMinting(456, anyone.address, "uid1234")
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234")
         await memberNftAsAnyone.mint(456)
         expect(await memberNft.balanceOf(anyone.address)).to.equal(1)
-        expect(await memberNft.tokenURI(1), "someuri/uid1234")
+        expect(await memberNft.tokenURI(1), "metadataURI/ABC123")
       })
 
       it('Updates total supply ', async function () {
-        await memberNftAsMinter.authorizeMinting(456, anyone.address, "uid1234")
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234")
         await memberNftAsAnyone.mint(456)
         expect(await memberNft.totalSupply()).to.equal(1)
       })
 
       it('Allows enumeration ', async function () {
-        await memberNftAsMinter.authorizeMinting(456, anyone.address, "uid1234")
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234")
         await memberNftAsAnyone.mint(456)
         expect(await memberNft.tokenOfOwnerByIndex(anyone.address, 0)).to.equal(1)
         expect(await memberNft.tokenByIndex(0)).to.equal(1)
       })
 
       it('Fails if mint used twice', async function () {
-        await memberNftAsMinter.authorizeMinting(456, anyone.address, "uid1234")
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234")
         await memberNftAsAnyone.mint(456)
-        expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('unauthorized nonce')
+        expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('Unauthorized code')
       })
     })
 
     describe('no transfers', function () {
       it('Does not allow tokens to be transferred', async function () {
-        await memberNftAsMinter.authorizeMinting(123, anyone.address, "uidasd")
+        await memberNftAsMinter.authorizeMinting(123, anyone.address, "ABC123", "uidasd")
         await memberNftAsAnyone.mint(123)
         expect(memberNftAsAnyone.transferFrom(anyone.address, author.address, 1)).to.be.revertedWith('Not transferable!')
       })
@@ -139,7 +139,7 @@ describe.only('KycdaoNTNFT Memberships Consumer', function () {
   })
 
   beforeEach(async function () {
-    const memberNftAbstract = (await MemberNft.deploy('test', 'TEST', 'someuri')) as KycdaoNtnft
+    const memberNftAbstract = (await MemberNft.deploy('test', 'TEST', 'metadataURI', 'verificationURI')) as KycdaoNtnft
     memberNft = await memberNftAbstract.connect(deployer)
     memberNftAsMinter = await memberNftAbstract.connect(minter)
     memberNftAsHolder = await memberNftAbstract.connect(holder)
@@ -160,7 +160,7 @@ describe.only('KycdaoNTNFT Memberships Consumer', function () {
 
     describe('consumer', function () {
       it('Allows holder to access function that requires validation', async function () {
-        await memberNft.authorizeMinting(1234, holder.address, "asd")
+        await memberNft.authorizeMinting(1234, holder.address, "ABC123", "asd")
         await memberNftAsHolder.mint(1234)
         expect(await memberNft.balanceOf(holder.address)).to.equal(1)
 

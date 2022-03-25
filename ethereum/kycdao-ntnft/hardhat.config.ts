@@ -1,12 +1,13 @@
-require('@openzeppelin/test-helpers')
-require('@nomiclabs/hardhat-waffle')
-require('@nomiclabs/hardhat-ethers')
-require('hardhat-gas-reporter')
-require('@nomiclabs/hardhat-etherscan')
-require('solidity-coverage')
-require('hardhat-typechain')
+// import { HardhatUserConfig, task } from 'hardhat/config'
+import '@openzeppelin/test-helpers'
+import '@nomiclabs/hardhat-waffle'
+import '@nomiclabs/hardhat-ethers'
+import 'hardhat-gas-reporter'
+import '@nomiclabs/hardhat-etherscan'
+import 'solidity-coverage'
+import 'hardhat-typechain'
 
-require ('fs')
+import * as fs from 'fs'
 const defaultNetwork = 'localhost'
 
 function mnemonic() {
