@@ -46,6 +46,7 @@
     "web3": "^1.7.0"
   },
   "dependencies": {
-    "@snapshot-labs/snapshot.js": "^0.1.1"
+    "@snapshot-labs/snapshot.js": "^0.1.1",
+    "dotenv": "^16.0.0"
   }
 }
