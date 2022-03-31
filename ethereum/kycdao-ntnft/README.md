@@ -15,6 +15,11 @@ You can start a local node to test out deployment with: `npx hardhat node` this 
 
 Run it with `npx hardhat run --network <NETWORK> scripts/deploy.ts`
 
+## Verify source code on Etherscan / Polygonscan
+Update constructor params in contructorArgs.js, then call:
+
+`npx hardhat verify --constructor-args constructorArgs.js CONTRACT_ADDR --network mumbai`
+
 ## Console
 You can interact with a deployed contract via: `npx hardhat console --network <NETWORK>`
 It's a standard node REPL. There's a `loadenv.js` file which loads standard vars for use when interacting with the contract. Ensure the contract address is correct for the network you want to use!
