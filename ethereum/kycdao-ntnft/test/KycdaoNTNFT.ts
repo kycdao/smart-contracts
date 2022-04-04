@@ -4,8 +4,8 @@ import { solidity } from 'ethereum-waffle'
 import { use, expect } from 'chai'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
-import { KycdaoNtnft } from '../src/types/KycdaoNtnft'
-import { NtConsumerExample } from '../src/types/NtConsumerExample'
+import { KycdaoNTNFT } from '../src/types/contracts/KycdaoNTNFT'
+import { NTConsumerExample } from '../src/types/contracts/NTConsumerExample.sol/NTConsumerExample'
 import { Wallet } from '@ethersproject/wallet'
 import { ContractFactory } from '@ethersproject/contracts'
 
@@ -30,9 +30,9 @@ async function blockTime() {
 }
 
 describe.only('KycdaoNtnft Membership', function () {
-  let memberNft: KycdaoNtnft
-  let memberNftAsMinter: KycdaoNtnft
-  let memberNftAsAnyone: KycdaoNtnft
+  let memberNft: KycdaoNTNFT
+  let memberNftAsMinter: KycdaoNTNFT
+  let memberNftAsAnyone: KycdaoNTNFT
 
   let deployer: SignerWithAddress
   let minter: SignerWithAddress
@@ -54,7 +54,7 @@ describe.only('KycdaoNtnft Membership', function () {
   })
 
   beforeEach(async function () {
-    const memberNftAbstract = (await MemberNft.deploy('test', 'TEST', 'metadataURI', 'verificationURI')) as KycdaoNtnft
+    const memberNftAbstract = (await MemberNft.deploy('test', 'TEST', 'metadataURI', 'verificationURI')) as KycdaoNTNFT
     memberNft = await memberNftAbstract.connect(deployer)
     memberNftAsMinter = await memberNftAbstract.connect(minter)
     memberNftAsAnyone = await memberNftAbstract.connect(anyone)
@@ -110,12 +110,12 @@ describe.only('KycdaoNtnft Membership', function () {
 })
 
 describe.only('KycdaoNTNFT Memberships Consumer', function () {
-  let memberNft: KycdaoNtnft
-  let memberNftAsMinter: KycdaoNtnft
-  let memberNftAsHolder: KycdaoNtnft
-  let consumer: NtConsumerExample
+  let memberNft: KycdaoNTNFT
+  let memberNftAsMinter: KycdaoNTNFT
+  let memberNftAsHolder: KycdaoNTNFT
+  let consumer: NTConsumerExample
 
-  let consumerAsHolder: NtConsumerExample
+  let consumerAsHolder: NTConsumerExample
 
   let deployer: SignerWithAddress
   let minter: SignerWithAddress
@@ -139,7 +139,7 @@ describe.only('KycdaoNTNFT Memberships Consumer', function () {
   })
 
   beforeEach(async function () {
-    const memberNftAbstract = (await MemberNft.deploy('test', 'TEST', 'metadataURI', 'verificationURI')) as KycdaoNtnft
+    const memberNftAbstract = (await MemberNft.deploy('test', 'TEST', 'metadataURI', 'verificationURI')) as KycdaoNTNFT
     memberNft = await memberNftAbstract.connect(deployer)
     memberNftAsMinter = await memberNftAbstract.connect(minter)
     memberNftAsHolder = await memberNftAbstract.connect(holder)
@@ -151,7 +151,7 @@ describe.only('KycdaoNTNFT Memberships Consumer', function () {
     await memberNft.grantRole(minterRole, minter.address)
     await memberNft.grantRole(minterRole, author.address)
 
-    consumer = (await Consumer.deploy(author.address, memberNft.address)) as NtConsumerExample
+    consumer = (await Consumer.deploy(author.address, memberNft.address)) as NTConsumerExample
     consumerAsHolder = await consumer.connect(holder)
   })
 

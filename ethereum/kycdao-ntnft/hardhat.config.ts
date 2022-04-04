@@ -5,7 +5,7 @@ import '@nomiclabs/hardhat-ethers'
 import 'hardhat-gas-reporter'
 import '@nomiclabs/hardhat-etherscan'
 import 'solidity-coverage'
-import 'hardhat-typechain'
+import '@typechain/hardhat'
 import 'dotenv/config'
 
 import * as fs from 'fs'

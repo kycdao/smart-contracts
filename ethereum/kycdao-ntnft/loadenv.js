@@ -1,8 +1,12 @@
 // A script to load some commonly used env into hardhat console
 // contains some example transactions you might want to execute too
+let web3 = require("web3")
+let Gsn = require("@opengsn/provider")
 
-// !! Change this if you've deployed somewhere else !!
-const contractAddress = "0xd9b477cD1a8f8942Aa1054aF1910f0A8cC824694"
+// TODO: Get this from a deployments folder which is filled out by deploy.ts
+const contractAddress = "0x761EaeEa482Dd834B5FAB4888c8a3323e10E61aD"
+const network = "mumbai"
+
 const nftArtifact = await artifacts.readArtifact('KycdaoNTNFT')
 
 // Roles list
@@ -21,10 +25,43 @@ let anyone = signers[2]
 
 const nftAsDeployer = new ethers.Contract(contractAddress, nftArtifact.abi, deployer)
 const nftAsMinter = new ethers.Contract(contractAddress, nftArtifact.abi, minter)
+await nftAsDeployer.grantRole(minterRole, minter.address)
 const nftAsAnyone = new ethers.Contract(contractAddress, nftArtifact.abi, anyone)
 
+// GSN Testing
+let web3provider
+let gsnConf
+let forwarderAddress
+if (network == "localhost") {
+    web3provider = new web3.providers.HttpProvider("http://localhost:8545")
+    let testEnvObj = new require('@opengsn/dev').GsnTestEnvironment 
+    let testEnv = testEnvObj.loadDeployment()
+    paymasterAddress = testEnv.paymasterAddress
+    forwarderAddress = testEnv.forwarderAddress
+    gsnConf = { paymasterAddress: paymasterAddress }
+} else if (network == "mumbai") {
+    // From: https://docs.opengsn.org/networks/polygon/mumbai.html
+    web3provider = new web3.providers.HttpProvider("https://matic-mumbai.chainstacklabs.com")
+    paymasterAddress = "0xcA94aBEdcC18A10521aB7273B3F3D5ED28Cf7B8A"
+    forwarderAddress = "0x4d4581c01A457925410cd3877d17b2fd4553b2C5"
+    gsnConf = {
+        paymasterAddress: paymasterAddress,
+        relayLookupWindowBlocks: 990,
+        relayRegistrationLookupBlocks: 990,
+        pastEventsQueryMaxPageSize: 990,
+    }
+} else {
+    throw "Unsupported network"
+}
+
+await nftAsDeployer.setTrustedForwarder(forwarderAddress)
+let gsnWrapper = await Gsn.RelayProvider.newProvider({provider: web3provider, config: gsnConf}).init()
+let gsnProvider = new ethers.providers.Web3Provider(gsnWrapper)
+let gsnAcct = gsnProvider.provider.newAccount()
+let gsnSigner = gsnProvider.getSigner(gsnAcct.address, gsnAcct.privateKey)
+const nftAsGsnAcct = new ethers.Contract(contractAddress, nftArtifact.abi, gsnSigner)
+
 // Example transactions 
-// await nftAsDeployer.grantRole(minterRole, minter.address)
-// await nftAsMinter.authorizeMinting(456, anyone.address, "uid1.json")
+// await nftAsMinter.authorizeMinting(456, anyone.address, "uid1.json", "uid1.json")
 // await nftAsAnyone.mint(456)
 // await nftAsDeployer.setBaseURI("https://newurl/")

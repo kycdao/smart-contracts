@@ -5,11 +5,12 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
+import "@opengsn/contracts/src/BaseRelayRecipient.sol";
 
 /// @title KycdaoNTNFT
 /// @dev Non-transferable NFT for KycDAO
 ///
-contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
+contract KycdaoNTNFT is ERC721Enumerable, AccessControl, BaseRelayRecipient {
     using ECDSA for bytes32; /*ECDSA for signature recovery for license mints*/
     using Strings for uint256;
     using Counters for Counters.Counter;
@@ -43,9 +44,9 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
         string memory metadataBaseURI_,
         string memory verificationDataBaseURI_
     ) ERC721(name_, symbol_) {
-        _setupRole(MINTER_ROLE, msg.sender);
-        _setupRole(OWNER_ROLE, msg.sender);
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);        
+        _setupRole(MINTER_ROLE, _msgSender());
+        _setupRole(OWNER_ROLE, _msgSender());
+        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());        
         _setBaseURI(metadataBaseURI_);
         _setVerificationBaseURI(verificationDataBaseURI_);
     }
@@ -55,7 +56,7 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
     *****************/
     /// @dev Mint the token by using an authorization code from an authorized account
     function mint(uint128 _auth_code) external payable {
-        address _dst = msg.sender;
+        address _dst = _msgSender();
         bytes32 _digest = _getDigest(_auth_code, _dst);
 
         // get and remove authorized metadata CID and verification path
@@ -79,7 +80,7 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
 
     /// @dev Authorize the minting of a new token
     function authorizeMinting(uint128 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path) external {
-        require(hasRole(MINTER_ROLE, msg.sender), "!minter");
+        require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
         bytes32 _digest = _getDigest(_auth_code, _dst);
 
         string memory _old_metadata = authorizedMetadataCIDs[_digest];
@@ -161,23 +162,46 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl {
     /// @notice Set new base URI for token metadata CIDs
     /// @param baseURI_ String to prepend to token metadata CIDs
     function setMetadataBaseURI(string memory baseURI_) external {
-        require(hasRole(OWNER_ROLE, msg.sender), "!owner");
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
         _setBaseURI(baseURI_);
     }
 
     /// @notice Set new base URI for verification paths
     /// @param baseURI_ String to prepend to verification paths
     function setVerificationBaseURI(string memory baseURI_) external {
-        require(hasRole(OWNER_ROLE, msg.sender), "!owner");
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
         _setVerificationBaseURI(baseURI_);
     }
 
     /// @notice Set the amount of gas to be sent after mint authorization
     /// @param value_ uint WEI to send
     function setSendGasOnAuthorization(uint value_) external {
-        require(hasRole(OWNER_ROLE, msg.sender), "!owner");
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
         sendGasOnAuthorization = value_;
     }
+
+    /*****************
+    GSN
+    *****************/
+    /// @notice Returns actual message sender when transaction is proxied via relay in GSN
+    function _msgSender() override(Context, BaseRelayRecipient) internal virtual view returns (address sender) {
+        sender = BaseRelayRecipient._msgSender();
+    }
+
+    /// @notice Returns actual message data when transaction is proxied via relay in GSN
+    function _msgData() override(Context, BaseRelayRecipient) internal virtual view returns (bytes calldata) {
+        return BaseRelayRecipient._msgData();
+    }
+
+    /// @notice Version of GSN used
+    string public override versionRecipient = "2.2.6";
+
+    /// @notice Tells the contract which forwarder on this network to trust
+    /// @param _forwarder the address of the forwarder
+    function setTrustedForwarder(address _forwarder) external {
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+        _setTrustedForwarder(_forwarder);
+    } 
 
     /*****************
     HELPERS
