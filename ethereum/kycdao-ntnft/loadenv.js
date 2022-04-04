@@ -4,7 +4,7 @@ let web3 = require("web3")
 let Gsn = require("@opengsn/provider")
 
 // TODO: Get this from a deployments folder which is filled out by deploy.ts
-const contractAddress = "0x761EaeEa482Dd834B5FAB4888c8a3323e10E61aD"
+const contractAddress = "0x97C5B97E52861982007e366d1aF518500C85BC4E"
 const network = "mumbai"
 
 const nftArtifact = await artifacts.readArtifact('KycdaoNTNFT')

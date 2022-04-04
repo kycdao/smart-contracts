@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "hardhat test --network hardhat",
-    "compile": "hardhat compile"
+    "testLocal": "hardhat node & hardhat test --network localhost; pkill -SIGINT -f 'hardhat node'",
+    "compile": "hardhat compile",
+    "local": "hardhat node & sleep 10; gsn start"
   },
   "repository": {
     "type": "git",
