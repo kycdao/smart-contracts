@@ -5,7 +5,6 @@ use near_sdk::env::keccak256;
 use near_contract_standards::upgrade::Ownable;
 use near_contract_standards::ntnft::{Token, NTNFT, TokenId};
 use near_contract_standards::ntnft::metadata::*;
-use std::convert::TryInto;
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
@@ -60,7 +59,7 @@ impl KycdaoNTNFT {
         Self {
             tokens: NTNFT::new(
                 StorageKey::NonFungibleToken,
-                sender.to_owned().try_into().unwrap(),
+                sender.to_owned(),
                 Some(StorageKey::TokenMetadata),
                 Some(StorageKey::Enumeration),
             ),
