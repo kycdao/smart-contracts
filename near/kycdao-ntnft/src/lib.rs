@@ -5,6 +5,7 @@ use near_sdk::env::keccak256;
 use near_contract_standards::upgrade::Ownable;
 use near_contract_standards::ntnft::{Token, NTNFT, TokenId};
 use near_contract_standards::ntnft::metadata::*;
+use near_sdk::json_types::U128;
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
@@ -75,7 +76,7 @@ impl KycdaoNTNFT {
     *****************/
     /// @dev Mint the token by using a code from an authorized account
     #[payable]
-    pub fn mint(&mut self, auth_code: u128) -> Token {
+    pub fn mint(&mut self, auth_code: U128) -> Token {
         let dst = env::predecessor_account_id();
 
         let digest = KycdaoNTNFT::get_digest(auth_code, &dst);
@@ -93,7 +94,7 @@ impl KycdaoNTNFT {
     // TODO this has a storage cost!
     // TODO add verification path?
     /// @dev Authorize the minting of a new token
-    pub fn authorize_minting(&mut self, auth_code: u128, dst: AccountId, metadata: TokenMetadata) {
+    pub fn authorize_minting(&mut self, auth_code: U128, dst: AccountId, metadata: TokenMetadata) {
         self.assert_mint_authorizer();
         let digest = KycdaoNTNFT::get_digest(auth_code, &dst);
 
@@ -135,7 +136,7 @@ impl KycdaoNTNFT {
     /*****************
     HELPERS
     *****************/
-    fn get_digest(auth_code: u128, dst: &AccountId) -> Vec<u8> {
+    fn get_digest(auth_code: U128, dst: &AccountId) -> Vec<u8> {
         let contract_addr = env::current_account_id();
         keccak256(format!("{}{}{}", auth_code, dst, contract_addr).as_bytes())
     }
@@ -145,7 +146,6 @@ impl KycdaoNTNFT {
     }
 
     pub fn get_mint_authorizer(&self) -> AccountId {
-        self.assert_owner();
         self.mint_authorizer.clone()
     }
 
