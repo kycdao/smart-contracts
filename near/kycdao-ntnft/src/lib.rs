@@ -6,6 +6,8 @@ use near_contract_standards::upgrade::Ownable;
 use near_contract_standards::ntnft::{Token, NTNFT, TokenId};
 use near_contract_standards::ntnft::metadata::*;
 
+type MintAuthorizationCode = u32;
+
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct KycdaoNTNFT {
@@ -75,10 +77,13 @@ impl KycdaoNTNFT {
     *****************/
     /// @dev Mint the token by using a code from an authorized account
     #[payable]
-    pub fn mint(&mut self, auth_code: u64) -> Token {
+    pub fn mint(&mut self, auth_code: MintAuthorizationCode) -> Token {
         let dst = env::predecessor_account_id();
+        //let dst = env::signer_account_id();
 
         let digest = KycdaoNTNFT::get_digest(auth_code, &dst);
+
+        log!("Checking minting authorization for {} with code: {}", dst, auth_code);
 
         // Get prefilled metadata, also remove digest so it cannot be used again
         let metadata = self.authorized_token_metadata.remove(&digest).expect("Unauthorized code");
@@ -93,9 +98,11 @@ impl KycdaoNTNFT {
     // TODO this has a storage cost!
     // TODO add verification path?
     /// @dev Authorize the minting of a new token
-    pub fn authorize_minting(&mut self, auth_code: u64, dst: AccountId, metadata: TokenMetadata) {
+    pub fn authorize_minting(&mut self, auth_code: MintAuthorizationCode, dst: AccountId, metadata: TokenMetadata) {
         self.assert_mint_authorizer();
         let digest = KycdaoNTNFT::get_digest(auth_code, &dst);
+
+        log!("Authorizing minting for {} with code: {}", dst, auth_code);
 
         let authorized_opt = self.authorized_token_metadata.get(&digest);
         assert!(authorized_opt.is_none(), "Code already authorized");
@@ -135,7 +142,7 @@ impl KycdaoNTNFT {
     /*****************
     HELPERS
     *****************/
-    fn get_digest(auth_code: u64, dst: &AccountId) -> Vec<u8> {
+    fn get_digest(auth_code: MintAuthorizationCode, dst: &AccountId) -> Vec<u8> {
         let contract_addr = env::current_account_id();
         keccak256(format!("{}{}{}", auth_code, dst, contract_addr).as_bytes())
     }
