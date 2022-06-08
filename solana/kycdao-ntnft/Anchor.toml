@@ -1,0 +1,15 @@
+[features]
+seeds = false
+
+[programs.devnet]
+kycdao_ntnft = "391aDmre352WhEtdpuMqHHwJxjvDRF4zu3pEKi6KRBzC"
+
+[registry]
+url = "https://anchor.projectserum.com"
+
+[provider]
+cluster = "devnet"
+wallet = "/Users/jaspertimm/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"

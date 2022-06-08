@@ -1,0 +1,23 @@
+{
+    "name": "kycDAO Collection",
+    "symbol": "kycDAO",
+    "description": "kycDAO Collection",
+    "external_url": "https://kycdao.xyz",
+    "edition": "",
+    "background_color": "000000",
+    "properties": {
+        "category": "image",
+        "creators": [
+            {
+                "address": "GXUxnBA6bcUWwEejSYeULDa7KBb1SY6cAee6VY6fZJEK"
+            }
+        ],
+        "files": [
+            {
+                "uri": "https://gateway.pinata.cloud/ipfs/QmfCecnrVwFiDQRGep1ojAYH1uHB3HavqbPs2Lb66xCn7F",
+                "file_type": "image/png"
+            }
+        ]
+    },
+    "image": "https://gateway.pinata.cloud/ipfs/QmfCecnrVwFiDQRGep1ojAYH1uHB3HavqbPs2Lb66xCn7F"
+}

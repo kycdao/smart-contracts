@@ -1,0 +1,13 @@
+{
+    "name": "kycDAO Collection",
+    "symbol": "kycDAO",
+    "uri": "https://gateway.pinata.cloud/ipfs/QmcYvF8GAYcJtUzXnYszMDqZ2z1mBLYrEyN9uZfGNdToqT",
+    "seller_fee_basis_points": 100,
+    "creators": [
+        {
+            "address": "GXUxnBA6bcUWwEejSYeULDa7KBb1SY6cAee6VY6fZJEK",
+            "verified": false,
+            "share": 100
+        }
+    ]
+}

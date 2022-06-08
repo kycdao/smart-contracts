@@ -1,0 +1,19 @@
+[workspace]
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+kycdao-ntnft = { path = "../programs/kycdao-ntnft", features = ["no-entrypoint"] }
+
+retry = "1.3.1"
+solana-client = "1.9.28"
+solana-sdk = "1.9.28"
+spl-associated-token-account = "1.0.3"
+spl-token = "3.2.0"
+anyhow = "1.0.57"
+shellexpand = "2.1"
+anchor-client = "0.24.2"
