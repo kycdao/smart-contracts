@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@opengsn/contracts/src/BaseRelayRecipient.sol";
 
 /// @title KycdaoNTNFT
 /// @dev Non-transferable NFT for KycDAO
 ///
-contract KycdaoNTNFT is ERC721Enumerable, AccessControl, BaseRelayRecipient {
+contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, BaseRelayRecipient, UUPSUpgradeable {
     using ECDSA for bytes32; /*ECDSA for signature recovery for license mints*/
     using Strings for uint256;
     using Counters for Counters.Counter;
@@ -31,24 +32,27 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl, BaseRelayRecipient {
     mapping(uint256 => string) private tokenMetadataCIDs; /* Metadata CIDs per token */
     mapping(uint256 => string) private tokenVerificationPaths; /* Verification paths per token */
 
-    uint public sendGasOnAuthorization = 0;
+    uint public sendGasOnAuthorization;
 
     /// @dev Constructor sets the contract metadata and the roles
     /// @param name_ Token name
     /// @param symbol_ Token symbol
     /// @param metadataBaseURI_ Base URI for metadata CIDs
     /// @param verificationDataBaseURI_ Base URI for verification paths
-    constructor(
+    function initialize(
         string memory name_,
         string memory symbol_,
         string memory metadataBaseURI_,
         string memory verificationDataBaseURI_
-    ) ERC721(name_, symbol_) {
+    )  public initializer {
+        __ERC721_init(name_, symbol_);
         _setupRole(MINTER_ROLE, _msgSender());
         _setupRole(OWNER_ROLE, _msgSender());
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());        
         _setBaseURI(metadataBaseURI_);
         _setVerificationBaseURI(verificationDataBaseURI_);
+
+        sendGasOnAuthorization = 0;
     }
 
     /*****************
@@ -138,13 +142,13 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl, BaseRelayRecipient {
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(AccessControl, ERC721Enumerable)
+        override(AccessControlUpgradeable, ERC721EnumerableUpgradeable)
         returns (bool)
     {
         return
-            interfaceId == type(IERC721Enumerable).interfaceId ||
-            interfaceId == type(IERC721Metadata).interfaceId ||
-            interfaceId == type(IAccessControl).interfaceId ||
+            interfaceId == type(IERC721EnumerableUpgradeable).interfaceId ||
+            interfaceId == type(IERC721MetadataUpgradeable).interfaceId ||
+            interfaceId == type(IAccessControlUpgradeable).interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
@@ -184,17 +188,17 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl, BaseRelayRecipient {
     GSN
     *****************/
     /// @notice Returns actual message sender when transaction is proxied via relay in GSN
-    function _msgSender() override(Context, BaseRelayRecipient) internal virtual view returns (address sender) {
+    function _msgSender() override(ContextUpgradeable, BaseRelayRecipient) internal virtual view returns (address sender) {
         sender = BaseRelayRecipient._msgSender();
     }
 
     /// @notice Returns actual message data when transaction is proxied via relay in GSN
-    function _msgData() override(Context, BaseRelayRecipient) internal virtual view returns (bytes calldata) {
+    function _msgData() override(ContextUpgradeable, BaseRelayRecipient) internal virtual view returns (bytes calldata) {
         return BaseRelayRecipient._msgData();
     }
 
     /// @notice Version of GSN used
-    string public override versionRecipient = "2.2.6";
+    string public override constant versionRecipient = "2.2.6";
 
     /// @notice Tells the contract which forwarder on this network to trust
     /// @param _forwarder the address of the forwarder
@@ -202,6 +206,14 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl, BaseRelayRecipient {
         require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
         _setTrustedForwarder(_forwarder);
     } 
+
+    /*****************
+    PROXY
+    *****************/
+
+    function _authorizeUpgrade(address) override internal view {
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+    }
 
     /*****************
     HELPERS
@@ -246,7 +258,7 @@ contract KycdaoNTNFT is ERC721Enumerable, AccessControl, BaseRelayRecipient {
         address from,
         address to,
         uint256 tokenId
-    ) internal override(ERC721Enumerable) {
+    ) internal override(ERC721EnumerableUpgradeable) {
         require(from == address(0), "Not transferable!");
         super._beforeTokenTransfer(from, to, tokenId);
     }

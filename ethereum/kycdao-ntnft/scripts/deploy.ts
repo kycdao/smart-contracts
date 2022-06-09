@@ -1,16 +1,21 @@
-const { ethers } = require('hardhat')
+const { ethers, upgrades } = require('hardhat')
 import { ContractFactory } from '@ethersproject/contracts'
 import { KycdaoNTNFT } from '../src/types/contracts/KycdaoNTNFT'
 
 async function main() {
-  const MemberNft = (await ethers.getContractFactory('KycdaoNTNFT')) as ContractFactory
+  const KycdaoNTNFTContract = (await ethers.getContractFactory('KycdaoNTNFT')) as ContractFactory
 
-  const metadata_base_uri = 'https://ipfs.io/ipfs/'
-  const verification_base_uri = 'https://kycdao.s3.amazonaws.com/metadata/'
+  const args = {
+    name: 'KYCDAO NFT',
+    symbol: 'KYCDAO',
+    metadata_base_uri: 'https://ipfs.io/ipfs/',
+    verification_base_uri: 'https://kycdao.s3.amazonaws.com/metadata/',
+  }
 
-  const memberNft = (await MemberNft.deploy('KYCDAO NFT', 'KYCDAO', metadata_base_uri, verification_base_uri)) as KycdaoNTNFT
-
-  console.log({ memberNft })
+  console.log('Deploying KycdaoNTNFT...')
+  const kycdaoNTNFTDeployed = await upgrades.deployProxy(KycdaoNTNFTContract, [args.name, args.symbol, args.metadata_base_uri, args.verification_base_uri], {initializer: 'initialize', kind: 'uups'}) as KycdaoNTNFT
+  await kycdaoNTNFTDeployed.deployed()
+  console.log(`kycdaoNTNFT deployed to: ${kycdaoNTNFTDeployed.address}`)
 }
 
 main()

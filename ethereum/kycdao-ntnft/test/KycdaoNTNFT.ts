@@ -1,5 +1,5 @@
 // @ts-ignore
-import { ethers } from 'hardhat'
+import { ethers, upgrades } from 'hardhat'
 import { solidity } from 'ethereum-waffle'
 import { use, expect } from 'chai'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
@@ -49,12 +49,12 @@ describe.only('KycdaoNtnft Membership', function () {
     const provider = ethers.provider
     author = await adminAbstract.connect(provider)
 
-    //await deployer.sendTransaction({ to: author.address, value: ethers.utils.parseEther('10') })
     MemberNft = await ethers.getContractFactory('KycdaoNTNFT')
   })
 
   beforeEach(async function () {
-    const memberNftAbstract = (await MemberNft.deploy('test', 'TEST', 'metadataURI', 'verificationURI')) as KycdaoNTNFT
+    const memberNftAbstract = await upgrades.deployProxy(MemberNft, ['test', 'TEST', 'metadataURI', 'verificationURI'], {initializer: 'initialize', kind: 'uups'}) as KycdaoNTNFT
+    await memberNftAbstract.deployed()
     memberNft = await memberNftAbstract.connect(deployer)
     memberNftAsMinter = await memberNftAbstract.connect(minter)
     memberNftAsAnyone = await memberNftAbstract.connect(anyone)
@@ -139,7 +139,8 @@ describe.only('KycdaoNTNFT Memberships Consumer', function () {
   })
 
   beforeEach(async function () {
-    const memberNftAbstract = (await MemberNft.deploy('test', 'TEST', 'metadataURI', 'verificationURI')) as KycdaoNTNFT
+    const memberNftAbstract = await upgrades.deployProxy(MemberNft, ['test', 'TEST', 'metadataURI', 'verificationURI'], {initializer: 'initialize', kind: 'uups'}) as KycdaoNTNFT
+    await memberNftAbstract.deployed()
     memberNft = await memberNftAbstract.connect(deployer)
     memberNftAsMinter = await memberNftAbstract.connect(minter)
     memberNftAsHolder = await memberNftAbstract.connect(holder)
