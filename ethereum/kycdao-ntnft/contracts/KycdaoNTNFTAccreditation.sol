@@ -8,10 +8,10 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@opengsn/contracts/src/BaseRelayRecipient.sol";
 
-/// @title KycdaoNTNFT
+/// @title KycdaoNTNFT used for accreditation
 /// @dev Non-transferable NFT for KycDAO
 ///
-contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, BaseRelayRecipient, UUPSUpgradeable {
+contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlUpgradeable, BaseRelayRecipient, UUPSUpgradeable {
     using ECDSA for bytes32; /*ECDSA for signature recovery for license mints*/
     using Strings for uint256;
     using Counters for Counters.Counter;
@@ -36,6 +36,25 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
     /// @notice Version of GSN used
     string public override constant versionRecipient = "2.2.6";
+
+    /*****************
+    END Version 0.1 VARIABLE DECLARATION
+    *****************/
+
+    struct Status {
+        bool isRevoked;
+        uint expiry;
+    }
+    mapping(bytes32 => Status) private authorizedStatuses;
+    mapping(uint256 => Status) private tokenStatuses;
+
+    /*****************
+    END Version 0.2 VARIABLE DECLARATION
+
+    NOTICE: To ensure upgradeability, all NEW variables must be declared below.
+    To keep track, ensure to add a Version tracker to the end of the new variables declared
+
+    *****************/
 
     /// @dev Constructor sets the contract metadata and the roles
     /// @param name_ Token name
@@ -71,10 +90,11 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         require(bytes(_metadata_cid).length != 0, "Unauthorized code");
         string memory _verification_path = authorizedVerificationPaths[_digest];
         require(bytes(_verification_path).length != 0, "Unauthorized code");
+        Status memory _status = authorizedStatuses[_digest];
 
         delete authorizedMetadataCIDs[_digest];
         delete authorizedVerificationPaths[_digest];
-
+        delete authorizedStatuses[_digest];
 
         // Mint token
         _mintInternal(_dst);
@@ -83,10 +103,11 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         uint256 _id = _tokenIds.current();
         tokenMetadataCIDs[_id] = _metadata_cid;
         tokenVerificationPaths[_id] = _verification_path;
+        tokenStatuses[_id] = _status;
     }
 
     /// @dev Authorize the minting of a new token
-    function authorizeMinting(uint128 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path) external {
+    function authorizeMinting(uint128 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path, uint _expiry) external {
         require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
         bytes32 _digest = _getDigest(_auth_code, _dst);
 
@@ -94,6 +115,8 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         require(bytes(_old_metadata).length == 0, "Code already authorized");
         authorizedMetadataCIDs[_digest] = _metadata_cid;
         authorizedVerificationPaths[_digest] = _verification_path;
+        //TODO: Should we check that we are given an expiry in the future?
+        authorizedStatuses[_digest] = Status (false, _expiry);
 
         if (sendGasOnAuthorization > 0) {
             (bool sent, ) = _dst.call{value: sendGasOnAuthorization}("");
@@ -141,6 +164,49 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
                 : "";
     }
 
+    function tokenExpiry(uint256 tokenId)
+        public
+        view
+        returns (uint expiry)
+    {
+        require(
+            _exists(tokenId),
+            "Expiry query for nonexistent token"
+        );
+
+        return tokenStatuses[tokenId].expiry;
+    }
+
+    function tokenIsRevoked(uint256 tokenId)
+        public
+        view
+        returns (bool isRevoked)
+    {
+        require(
+            _exists(tokenId),
+            "IsRevoked query for nonexistent token"
+        );
+
+        return tokenStatuses[tokenId].isRevoked;
+    }
+
+    function hasValidNFT(address _addr)
+        public
+        view
+        returns (bool)
+    {
+        uint numTokens = balanceOf(_addr);
+        for (uint i=0; i<numTokens; i++) {
+            uint tokenId = tokenOfOwnerByIndex(_addr, i);
+            if (tokenStatuses[tokenId].expiry > block.timestamp
+                && !tokenStatuses[tokenId].isRevoked) {
+                    return true;
+                }
+        }
+
+        return false;
+    }
+
     ///@dev Support interfaces for Access Control and ERC721
     function supportsInterface(bytes4 interfaceId)
         public
@@ -185,6 +251,38 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     function setSendGasOnAuthorization(uint value_) external {
         require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
         sendGasOnAuthorization = value_;
+    }
+
+    /*****************
+    Token Status Updates
+    *****************/
+
+    function revokeToken(uint tokenId_) external {
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+        require(
+            _exists(tokenId_),
+            "revokeToken for nonexistent token"
+        );
+        tokenStatuses[tokenId_].isRevoked = true;
+    }
+
+    function revokeAll(address addr_) external {
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+
+        uint numTokens = balanceOf(addr_);
+        for (uint i=0; i<numTokens; i++) {
+            uint tokenId = tokenOfOwnerByIndex(addr_, i);
+            tokenStatuses[tokenId].isRevoked = true;
+        }
+    }
+
+    function updateExpiry(uint tokenId_, uint expiry_) external {
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+        require(
+            _exists(tokenId_),
+            "updateExpiry for nonexistent token"
+        );
+        tokenStatuses[tokenId_].expiry = expiry_;
     }
 
     /*****************
