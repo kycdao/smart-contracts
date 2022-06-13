@@ -141,13 +141,13 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
       })
 
       it('Has valid NFT', async function () {
-        expect(await memberNft.hasValidNFT(anyone.address)).to.equal(false)
+        expect(await memberNft.hasValidToken(anyone.address)).to.equal(false)
         const currBlockTime = await blockTime()
         const expiration = currBlockTime + 1000
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
         await memberNftAsAnyone.mint(456)
         const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
-        expect(await memberNft.hasValidNFT(anyone.address)).to.equal(true)
+        expect(await memberNft.hasValidToken(anyone.address)).to.equal(true)
       })      
     })
 
@@ -163,7 +163,7 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
       })
 
       it('Has valid NFT returns false', async function () {
-        expect(await memberNft.hasValidNFT(anyone.address)).to.equal(false)
+        expect(await memberNft.hasValidToken(anyone.address)).to.equal(false)
       })      
     })    
   })
@@ -189,7 +189,7 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
       const newExpiration = currBlockTime - 1000
       await memberNft.updateExpiry(tokenId, newExpiration)
       expect(await memberNft.tokenExpiry(tokenId)).to.equal(newExpiration)
-      expect(await memberNft.hasValidNFT(anyone.address)).to.equal(false)
+      expect(await memberNft.hasValidToken(anyone.address)).to.equal(false)
     })
 
     it('By revoking, revokes token', async function () {
@@ -200,7 +200,7 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
       const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
       await memberNft.revokeToken(tokenId)
       expect(await memberNft.tokenIsRevoked(tokenId)).to.equal(true)
-      expect(await memberNft.hasValidNFT(anyone.address)).to.equal(false)
+      expect(await memberNft.hasValidToken(anyone.address)).to.equal(false)
     })
 
     it('By revoking all, revokes token', async function () {
@@ -211,7 +211,7 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
       const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
       await memberNft.revokeAll(anyone.address)
       expect(await memberNft.tokenIsRevoked(tokenId)).to.equal(true)
-      expect(await memberNft.hasValidNFT(anyone.address)).to.equal(false)
+      expect(await memberNft.hasValidToken(anyone.address)).to.equal(false)
     })     
   })
 

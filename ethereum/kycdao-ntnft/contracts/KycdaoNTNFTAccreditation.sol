@@ -7,11 +7,12 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@opengsn/contracts/src/BaseRelayRecipient.sol";
+import "./interfaces/IKycdaoNTNFTStatus.sol";
 
 /// @title KycdaoNTNFT used for accreditation
 /// @dev Non-transferable NFT for KycDAO
 ///
-contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlUpgradeable, BaseRelayRecipient, UUPSUpgradeable {
+contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlUpgradeable, BaseRelayRecipient, UUPSUpgradeable, IKycdaoNTNFTStatus {
     using ECDSA for bytes32; /*ECDSA for signature recovery for license mints*/
     using Strings for uint256;
     using Counters for Counters.Counter;
@@ -167,6 +168,7 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
     function tokenExpiry(uint256 tokenId)
         public
         view
+        override
         returns (uint expiry)
     {
         require(
@@ -180,6 +182,7 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
     function tokenIsRevoked(uint256 tokenId)
         public
         view
+        override
         returns (bool isRevoked)
     {
         require(
@@ -190,9 +193,10 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         return tokenStatuses[tokenId].isRevoked;
     }
 
-    function hasValidNFT(address _addr)
+    function hasValidToken(address _addr)
         public
         view
+        override
         returns (bool)
     {
         uint numTokens = balanceOf(_addr);
@@ -257,8 +261,8 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
     Token Status Updates
     *****************/
 
-    function revokeToken(uint tokenId_) external {
-        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+    function revokeToken(uint tokenId_) external override {
+        require(hasRole(MINTER_ROLE, _msgSender()), "!owner");
         require(
             _exists(tokenId_),
             "revokeToken for nonexistent token"
@@ -266,8 +270,8 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         tokenStatuses[tokenId_].isRevoked = true;
     }
 
-    function revokeAll(address addr_) external {
-        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+    function revokeAll(address addr_) external override {
+        require(hasRole(MINTER_ROLE, _msgSender()), "!owner");
 
         uint numTokens = balanceOf(addr_);
         for (uint i=0; i<numTokens; i++) {
@@ -276,8 +280,8 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         }
     }
 
-    function updateExpiry(uint tokenId_, uint expiry_) external {
-        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+    function updateExpiry(uint tokenId_, uint expiry_) external override {
+        require(hasRole(MINTER_ROLE, _msgSender()), "!owner");
         require(
             _exists(tokenId_),
             "updateExpiry for nonexistent token"
