@@ -23,13 +23,10 @@ interface IKycdaoNTNFTStatus {
     /// @return valid Whether the address has a valid token
     function hasValidToken(address _addr) external view returns (bool valid);
 
-    /// @dev Revoke a given token
+    /// @dev Set whether a token is revoked or not
     /// @param _tokenId ID of the token to revoke
-    function revokeToken(uint _tokenId) external;
-
-    /// @dev Revoke ALL tokens associated with a given address
-    /// @param _addr Address for which ALL tokens will be revoked
-    function revokeAll(address _addr) external;
+    /// @param _revoked A bool indicating whether this token is revoked
+    function setRevokeToken(uint _tokenId, bool _revoked) external;
 
     /// @dev Update the given token to a new expiry
     /// @param _tokenId ID of the token whose expiry should be updated

@@ -261,23 +261,13 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
     Token Status Updates
     *****************/
 
-    function revokeToken(uint tokenId_) external override {
+    function setRevokeToken(uint _tokenId, bool _revoked) external override {
         require(hasRole(MINTER_ROLE, _msgSender()), "!owner");
         require(
-            _exists(tokenId_),
+            _exists(_tokenId),
             "revokeToken for nonexistent token"
         );
-        tokenStatuses[tokenId_].isRevoked = true;
-    }
-
-    function revokeAll(address addr_) external override {
-        require(hasRole(MINTER_ROLE, _msgSender()), "!owner");
-
-        uint numTokens = balanceOf(addr_);
-        for (uint i=0; i<numTokens; i++) {
-            uint tokenId = tokenOfOwnerByIndex(addr_, i);
-            tokenStatuses[tokenId].isRevoked = true;
-        }
+        tokenStatuses[_tokenId].isRevoked = _revoked;
     }
 
     function updateExpiry(uint tokenId_, uint expiry_) external override {
