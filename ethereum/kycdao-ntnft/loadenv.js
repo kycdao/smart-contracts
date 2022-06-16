@@ -4,10 +4,10 @@ let web3 = require("web3")
 let Gsn = require("@opengsn/provider")
 
 // TODO: Get this from a deployments folder which is filled out by deploy.ts
-const contractAddress = "0x97C5B97E52861982007e366d1aF518500C85BC4E"
-const network = "mumbai"
+const contractAddress = "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
+const network = "localhost"
 
-const nftArtifact = await artifacts.readArtifact('KycdaoNTNFT')
+const nftArtifact = await artifacts.readArtifact('KycdaoNTNFTAccreditation')
 
 // Roles list
 // By default, whoever deploys the account has ADMIN, MINTER and OWNER roles
@@ -64,4 +64,4 @@ const nftAsGsnAcct = new ethers.Contract(contractAddress, nftArtifact.abi, gsnSi
 // Example transactions 
 // await nftAsMinter.authorizeMinting(456, anyone.address, "uid1.json", "uid1.json")
 // await nftAsAnyone.mint(456)
-// await nftAsDeployer.setBaseURI("https://newurl/")
+// await nftAsDeployer.setMetadataBaseURI("https://newurl/")

@@ -1,4 +1,4 @@
-let { ethers, network } = require('hardhat')
+let { ethers, network, upgrades } = require('hardhat')
 
 if (network.name != "localhost") {
     console.log("Skipping GSN tests when not on localhost")
@@ -33,7 +33,9 @@ describe.only('KycdaoNtnft Membership with GSN', function () {
     })
 
     beforeEach(async function () {
-        const memberNftAbstract = await MemberNft.deploy('test', 'TEST', 'metadataURI', 'verificationURI')
+        const memberNftAbstract = await upgrades.deployProxy(MemberNft, ['test', 'TEST', 'metadataURI', 'verificationURI'], {initializer: 'initialize', kind: 'uups'})
+        await memberNftAbstract.deployed()
+        // const memberNftAbstract = await MemberNft.deploy('test', 'TEST', 'metadataURI', 'verificationURI')
         memberNft = await memberNftAbstract.connect(deployer)
         memberNftAsMinter = await memberNftAbstract.connect(minter)    
         await memberNft.grantRole(minterRole, minter.address)
