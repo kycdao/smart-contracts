@@ -62,7 +62,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     Authorized Minting
     *****************/
     /// @dev Mint the token by using an authorization code from an authorized account
-    function mint(uint128 _auth_code) external payable {
+    function mint(uint32 _auth_code) external payable {
         address _dst = _msgSender();
         bytes32 _digest = _getDigest(_auth_code, _dst);
 
@@ -86,7 +86,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     }
 
     /// @dev Authorize the minting of a new token
-    function authorizeMinting(uint128 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path) external {
+    function authorizeMinting(uint32 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path) external {
         require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
         bytes32 _digest = _getDigest(_auth_code, _dst);
 
@@ -218,7 +218,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     /*****************
     HELPERS
     *****************/
-    function _getDigest(uint128 _auth_code, address _dst) internal view returns (bytes32) {
+    function _getDigest(uint32 _auth_code, address _dst) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(_auth_code, _dst, address(this)));
     }
 

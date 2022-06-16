@@ -82,7 +82,7 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
     Authorized Minting
     *****************/
     /// @dev Mint the token by using an authorization code from an authorized account
-    function mint(uint128 _auth_code) external payable {
+    function mint(uint32 _auth_code) external payable {
         address _dst = _msgSender();
         bytes32 _digest = _getDigest(_auth_code, _dst);
 
@@ -108,7 +108,7 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
     }
 
     /// @dev Authorize the minting of a new token
-    function authorizeMinting(uint128 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path, uint _expiry) external {
+    function authorizeMinting(uint32 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path, uint _expiry) external {
         require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
         bytes32 _digest = _getDigest(_auth_code, _dst);
 
@@ -310,7 +310,7 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
     /*****************
     HELPERS
     *****************/
-    function _getDigest(uint128 _auth_code, address _dst) internal view returns (bytes32) {
+    function _getDigest(uint32 _auth_code, address _dst) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(_auth_code, _dst, address(this)));
     }
 
