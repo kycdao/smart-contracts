@@ -67,7 +67,7 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         string memory symbol_,
         string memory metadataBaseURI_,
         string memory verificationDataBaseURI_
-    )  public initializer {
+    )  public onlyInitializing {
         __ERC721_init(name_, symbol_);
         _setupRole(MINTER_ROLE, _msgSender());
         _setupRole(OWNER_ROLE, _msgSender());
