@@ -57,7 +57,14 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
 
     *****************/
 
-    /// @dev Constructor sets the contract metadata and the roles
+    /// @dev This implementation contract shouldn't be initialized directly
+    /// but rather through the proxy, thus we disable it here.
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @dev initialize sets the contract metadata and the roles
     /// @param name_ Token name
     /// @param symbol_ Token symbol
     /// @param metadataBaseURI_ Base URI for metadata CIDs
@@ -97,14 +104,14 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         delete authorizedVerificationPaths[_digest];
         delete authorizedStatuses[_digest];
 
-        // Mint token
-        _mintInternal(_dst);
-
         // Store token metadata CID and verification path
         uint256 _id = _tokenIds.current();
         tokenMetadataCIDs[_id] = _metadata_cid;
         tokenVerificationPaths[_id] = _verification_path;
         tokenStatuses[_id] = _status;
+
+        // Mint token
+        _mintInternal(_dst);        
     }
 
     /// @dev Authorize the minting of a new token
