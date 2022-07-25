@@ -1,16 +1,21 @@
 import { HardhatUserConfig, task } from 'hardhat/config'
+import { ethers } from 'ethers'
 import '@openzeppelin/test-helpers'
 import '@openzeppelin/hardhat-upgrades'
 import '@nomiclabs/hardhat-waffle'
-import '@nomiclabs/hardhat-ethers'
 import 'hardhat-gas-reporter'
 import '@nomiclabs/hardhat-etherscan'
 import 'solidity-coverage'
 import '@typechain/hardhat'
 import 'dotenv/config'
+import "xdeployer"
+import "./tasks/testUpgrade"
+import "./tasks/deploy"
+import "./tasks/upgrade"
 
 import * as fs from 'fs'
 const defaultNetwork = 'localhost'
+const DEFAULT_HARDHAT_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
 
 function mnemonic() {
   try {
@@ -24,10 +29,19 @@ function mnemonic() {
 }
 
 const config: HardhatUserConfig = {
+  // xdeploy: {
+  //   contract: "KycdaoNTNFT",
+  //   // constructorArgsPath: "./constructorArgs.js",
+  //   salt: "WAGMI1",
+  //   signer: DEFAULT_HARDHAT_KEY,
+  //   networks: ["localhost"],
+  //   rpcUrls: ["http://127.0.0.1:8545/"],
+  //   // gasLimit: 1.2 * 10 ** 6,
+  // },
   solidity: {
     compilers: [
       {
-        version: '0.8.7',
+        version: '0.8.9',
         settings: {
           optimizer: {
             enabled: true,
