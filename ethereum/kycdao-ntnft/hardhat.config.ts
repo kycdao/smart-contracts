@@ -43,15 +43,6 @@ function get_mnemonic(path: string) {
 }
 
 const config: HardhatUserConfig = {
-  xdeploy: {
-    contract: "ProxyUUPS",
-    // constructorArgsPath: "./constructorArgs.js",
-    salt: "KycdaoNTNFT_AccreditedInvestor",
-    signer: privateKey(mnemonic()),
-    networks: ["polygon"],
-    rpcUrls: ['https://polygon-mainnet.infura.io/v3/' + process.env.INFURA_ID],
-    gasLimit: 1.2 * 10 ** 6,
-  },
   solidity: {
     compilers: [
       {
@@ -80,7 +71,7 @@ const config: HardhatUserConfig = {
     },
     polygon: {
       url: 'https://polygon-mainnet.infura.io/v3/' + process.env.INFURA_ID,
-      gasPrice: 50 * 1000000000,
+      // gasPrice: 50 * 1000000000,
       accounts: {
         mnemonic: mnemonic(),
       },
