@@ -12,7 +12,6 @@ import "xdeployer"
 import "./tasks/testUpgrade"
 import "./tasks/deploy"
 import "./tasks/upgrade"
-import "./tasks/createProxy"
 
 import * as fs from 'fs'
 const defaultNetwork = 'localhost'
