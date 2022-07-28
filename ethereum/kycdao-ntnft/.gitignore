@@ -2,6 +2,7 @@ node_modules
 src/types/*
 artifacts/*
 cache/*
+deployments/*
 *.txt
 sample
 coverage
