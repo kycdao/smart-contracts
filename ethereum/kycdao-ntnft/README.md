@@ -1,6 +1,16 @@
 # KYCDAO Non-transferable NFT - Solidity
 
-For details on making compatible changes to the contracts please [Upgrades.md](./Upgrades.md)
+For details on making compatible changes to the contracts please see [Upgrades.md](./Upgrades.md)
+
+## Install
+
+Install all required packages with:
+`npm install`
+
+## Compiling
+
+To ensure all the TypeScript type files are available to tasks and tests, compile with:
+`npm run compile`
 
 ## Testing
 
