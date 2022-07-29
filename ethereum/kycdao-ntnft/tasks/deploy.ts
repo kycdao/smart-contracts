@@ -24,7 +24,7 @@ const NETWORK_CONGESTION_THRESHOLDS = {
 // List of networks where we need to manually set gasPrice
 const NETWORKS_MANUAL_GAS = ['polygon']
 
-function privateKey(mnemonic: string) {
+function asPrivateKey(mnemonic: string) {
     let mnemonicWallet = ethers.Wallet.fromMnemonic(mnemonic)
     return mnemonicWallet.privateKey
 }
@@ -162,12 +162,21 @@ task("deploy", "Deploys the proxy and logic contract (using xdeploy) to a networ
         console.log('Removing old xdeploy debug result')
         removeDebugXdeployResult(hre)
 
+        // Check if we're using private keys directly or a seed phrase in accounts
         const networkConf = hre.network.config as HttpNetworkConfig
-        const netAccts = networkConf.accounts as HttpNetworkHDAccountsConfig
+        let privateKey: string = (() => {
+            if (Array.isArray(networkConf.accounts)) {
+                return networkConf.accounts[0]
+            } else {
+                const netAccts = networkConf.accounts as HttpNetworkHDAccountsConfig
+                return asPrivateKey(netAccts.mnemonic)
+            }
+        })()
+
         hre.config.xdeploy = {
             contract: "ProxyUUPS",
             salt: salt,
-            signer: privateKey(netAccts.mnemonic),
+            signer: privateKey,
             networks: [hre.network.name],
             rpcUrls: [networkConf.url],
             gasLimit: 1.2 * 10 ** 6,

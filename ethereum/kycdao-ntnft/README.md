@@ -28,7 +28,7 @@ Run it with:
 `npx hardhat testUpgrade --contract CONTRACT_NAME --network localhost`
 
 ## Config
-The hardhat config file `hardhat.config.ts` lists most config (which is loaded whenever a hardhat task is run). It includes all the network details. It assumes a `mnemonic.txt` file exists which it uses for accounts.
+The hardhat config file `hardhat.config.ts` lists most config (which is loaded whenever a hardhat task is run). It includes all the network details. You can specify private keys as strings under `accounts` or create a `mnemonic.txt` with a seed (and also a `test_mnemonic.txt` for the test networks).
 
 A `.env` file is also used for secure env variables like API keys used for INFURA and verifying on ether/polygonscan. See `.env.example`.
 
