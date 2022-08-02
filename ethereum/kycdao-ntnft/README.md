@@ -22,7 +22,7 @@ To execute unit tests:
 To execute all tests, incl. GSN:
 `npm run testLocal`
 
-There is a separate hardhat task which uses OpenZeppelin's Upgrades Plugin to confirm a contract's code is 'upgrade compatible'. It does this by using the plugin to deploy the contract to a local node, i.e. it expects a local node to be running already.
+There is a separate hardhat task which uses OpenZeppelin's Upgrades Plugin to confirm a contract's code is 'upgrade compatible'. It does this by using the plugin to deploy the contract to a local node, i.e. **it expects a local node to be running already.**
 
 Run it with:
 `npx hardhat testUpgrade --contract CONTRACT_NAME --network localhost`
@@ -43,6 +43,25 @@ Example:
 
 As we use [xdeploy](https://github.com/pcaversaccio/xdeployer) (`CREATE2`) for deployment, a deterministic address is always used, regardless of network. Hence `salt` is simply a string used to ensure a unique address is generated - i.e. if `salt` is the same, the same address is generated. If the same `salt` is used to deploy again on the same network, an error will occur saying there is already a contract deployed to that address.
 
+The `deploy` task has a few steps:
+
+1. Deploy the logic (implementation) contract
+2. Using `xdeploy`, deploy the proxy contract to a deterministic address
+3. Initialize the proxy contract with the implementation contract
+4. Verify the source for the logic (implementation) contract
+
+If step 1 succeeds but step 2 fails, you can safely restart the script and try again - using files in the `deployments/` directory the script will see the existing implementation and use this instead of redeploying, continuing straight from step 2.
+
+Additionally, at the start of the script, it will check network congestion and in the case it is high (meaning a potentially high gas cost), it will ask the user if they'd like to continue.
+
+### Gas costs
+
+For most networks, automatic gas cost calculation is fine (i.e. you can do nothing). However for some (**Hi Polygon!**) it is required to use an API to check gas costs before each transaction. The script uses a fixed array to determine which networks require this gas cost calculation:
+
+`const NETWORKS_MANUAL_GAS = ['polygon']`
+
+Feel free to add any other networks to this array if you are having trouble with gas costs during deployment.
+
 ## Deploying upgrades
 Upgrades of existing contracts using proxies can be done with the [`upgrade`](./tasks/upgrade.ts)
 
@@ -58,4 +77,4 @@ NOTE: When verifying through a proxy, the proxy address is specified but the log
 ## Console
 You can interact with a deployed contract via: `npx hardhat console --network <NETWORK>`
 It's a standard node REPL. There's a `loadenv.js` file which loads standard vars for use when interacting with the contract. Ensure the contract address is correct for the network you want to use!
-Keys used by the console for non-local chains will come from `mnemonic.txt`
+Keys used by the console for non-local chains will come from `test_mnemonic.txt` (test networks) and `mnemonic.txt` (mainnet).
