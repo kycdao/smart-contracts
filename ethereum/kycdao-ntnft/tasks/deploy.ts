@@ -24,6 +24,10 @@ const NETWORK_CONGESTION_THRESHOLDS = {
 // List of networks where we need to manually set gasPrice
 const NETWORKS_MANUAL_GAS = ['polygon']
 
+/**
+ * UTILITY FUNCTIONS
+ */
+
 function asPrivateKey(mnemonic: string) {
     let mnemonicWallet = ethers.Wallet.fromMnemonic(mnemonic)
     return mnemonicWallet.privateKey
@@ -102,10 +106,15 @@ async function setGasPriceIfReq(hre:any) {
     }
 }
 
+/**
+ * TASK IMPLEMENTATION
+ */
+
 task("deploy", "Deploys the proxy and logic contract (using xdeploy) to a network")
     .addParam("contract", "The name of the logic contract to deploy")
     .addParam("salt", "The salt used to give the correct deploy address in xdeploy")
     .setAction(async ({ contract, salt }, hre) => {
+
         // Check gas price first
         const gasPriceInfo = await getGasPriceInfo(hre)
         if (gasPriceInfo.networkCongestion > NETWORK_CONGESTION_THRESHOLDS.BUSY) {
@@ -158,7 +167,6 @@ task("deploy", "Deploys the proxy and logic contract (using xdeploy) to a networ
 
         // Deploy proxy for logic using xdeploy
         console.log(`\n\nDeploying proxy for logic using xdeploy...`)
-
         console.log('Removing old xdeploy debug result')
         removeDebugXdeployResult(hre)
 
