@@ -4,10 +4,9 @@
   "description": "kycdao-nt-nft",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
+    "compile": "TS_NODE_TRANSPILE_ONLY=1 hardhat compile",
     "test": "hardhat test --network hardhat",
     "testLocal": "hardhat node & hardhat test --network localhost; pkill -SIGINT -f 'hardhat node'",
-    "compile": "hardhat compile",
     "local": "hardhat node & sleep 10; gsn start"
   },
   "repository": {

@@ -17,11 +17,6 @@ import * as fs from 'fs'
 const defaultNetwork = 'localhost'
 const DEFAULT_HARDHAT_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
 
-function privateKey(mnemonic: string) {
-  let mnemonicWallet = ethers.Wallet.fromMnemonic(mnemonic)
-  return mnemonicWallet.privateKey
-}
-
 function test_mnemonic() {
   return get_mnemonic('./test_mnemonic.txt')
 }
