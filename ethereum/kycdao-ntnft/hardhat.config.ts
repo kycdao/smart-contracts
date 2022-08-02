@@ -17,9 +17,22 @@ import * as fs from 'fs'
 const defaultNetwork = 'localhost'
 const DEFAULT_HARDHAT_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
 
+function privateKey(mnemonic: string) {
+  let mnemonicWallet = ethers.Wallet.fromMnemonic(mnemonic)
+  return mnemonicWallet.privateKey
+}
+
+function test_mnemonic() {
+  return get_mnemonic('./test_mnemonic.txt')
+}
+
 function mnemonic() {
+  return get_mnemonic('./mnemonic.txt')
+}
+
+function get_mnemonic(path: string) {
   try {
-    return fs.readFileSync('./mnemonic.txt').toString().trim()
+    return fs.readFileSync(path).toString().trim()
   } catch (e) {
     if (defaultNetwork !== 'localhost') {
       console.log('☢️ WARNING: No mnemonic file created for a deploy account. Try `yarn run generate` and then `yarn run account`.')
@@ -29,15 +42,6 @@ function mnemonic() {
 }
 
 const config: HardhatUserConfig = {
-  // xdeploy: {
-  //   contract: "KycdaoNTNFT",
-  //   // constructorArgsPath: "./constructorArgs.js",
-  //   salt: "WAGMI1",
-  //   signer: DEFAULT_HARDHAT_KEY,
-  //   networks: ["localhost"],
-  //   rpcUrls: ["http://127.0.0.1:8545/"],
-  //   // gasLimit: 1.2 * 10 ** 6,
-  // },
   solidity: {
     compilers: [
       {
@@ -64,22 +68,29 @@ const config: HardhatUserConfig = {
     hardhat: {
       allowUnlimitedContractSize: true,
     },
+    polygon: {
+      url: 'https://polygon-mainnet.infura.io/v3/' + process.env.INFURA_ID,
+      // gasPrice: 50 * 1000000000,
+      accounts: {
+        mnemonic: mnemonic(),
+      },
+    },
     rinkeby: {
       url: 'https://rinkeby.infura.io/v3/' + process.env.INFURA_ID, //<---- YOUR INFURA ID! (or it won't work)
       accounts: {
-        mnemonic: mnemonic(),
+        mnemonic: test_mnemonic(),
       },
     },
     mumbai: {
       url: 'https://polygon-mumbai.infura.io/v3/' + process.env.INFURA_ID,
       accounts: {
-        mnemonic: mnemonic(),
+        mnemonic: test_mnemonic(),
       },      
     },
     fuji: {
       url: 'https://api.avax-test.network/ext/bc/C/rpc',
       accounts: {
-        mnemonic: mnemonic(),
+        mnemonic: test_mnemonic(),
       },      
     },    
     xdai: {
