@@ -29,7 +29,7 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-        cache-dependency-path: ethereum/kycdao-nftnft/package-lock.json
+        cache-dependency-path: ethereum/kycdao-ntnft/package-lock.json
     - run: npm ci
     - run: npm run compile
     - run: npm test
