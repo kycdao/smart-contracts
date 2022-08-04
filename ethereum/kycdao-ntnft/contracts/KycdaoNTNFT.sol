@@ -105,19 +105,14 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         delete authorizedStatuses[_digest];
 
         // Store token metadata CID and verification path
+        // Actual tokenId will be current + 1
         uint256 _id = _tokenIds.current() + 1;
         tokenMetadataCIDs[_id] = _metadata_cid;
         tokenVerificationPaths[_id] = _verification_path;
         tokenStatuses[_id] = _status;
 
-        //testing
-        require(tokenStatuses[_id].expiry > 0, "test failed (mint) expiry is zero");
-
         // Mint token
         _mintInternal(_dst);
-
-        require(_id == 1, "_id is NOT 1");
-        require(tokenStatuses[_id].expiry > 0, "test failed (mint) expiry is NOW zero");
     }
 
     /// @dev Authorize the minting of a new token
@@ -130,11 +125,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         authorizedMetadataCIDs[_digest] = _metadata_cid;
         authorizedVerificationPaths[_digest] = _verification_path;
         //TODO: Should we check that we are given an expiry in the future?
-        require(_expiry > 0, "Must be given non-zero expiry");
         authorizedStatuses[_digest] = Status (false, _expiry);
-
-        //testing
-        require(authorizedStatuses[_digest].expiry > 0, "test failed (authMint), expiry is zero");
 
         if (sendGasOnAuthorization > 0) {
             (bool sent, ) = _dst.call{value: sendGasOnAuthorization}("");
@@ -192,8 +183,6 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
             _exists(tokenId),
             "Expiry query for nonexistent token"
         );
-
-        // require(tokenStatuses[tokenId].expiry > 0, "Oh nO! expiry is zero");
 
         return tokenStatuses[tokenId].expiry;
     }
@@ -281,7 +270,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     *****************/
 
     function setRevokeToken(uint _tokenId, bool _revoked) external override {
-        require(hasRole(MINTER_ROLE, _msgSender()), "!owner");
+        require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
         require(
             _exists(_tokenId),
             "revokeToken for nonexistent token"
@@ -290,7 +279,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     }
 
     function updateExpiry(uint tokenId_, uint expiry_) external override {
-        require(hasRole(MINTER_ROLE, _msgSender()), "!owner");
+        require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
         require(
             _exists(tokenId_),
             "updateExpiry for nonexistent token"

@@ -11,10 +11,6 @@ import { ContractFactory } from '@ethersproject/contracts'
 
 use(solidity)
 
-// chai
-//   .use(require('chai-as-promised'))
-//   .should();
-
 const zeroAddress = '0x0000000000000000000000000000000000000000'
 
 const minterRole = ethers.utils.solidityKeccak256(['string'], ['MINTER_ROLE'])
@@ -127,9 +123,7 @@ describe.only('KycdaoNtnft Membership', function () {
         console.log(`expiration is: ${expiration}`)
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
         await memberNftAsAnyone.mint(456)
-
-        let tokenId = await memberNftAsAnyone.tokenOfOwnerByIndex(anyone.address, 0)
-        // let tokenExp = await memberNftAsAnyone.tokenExpiry(tokenId)
+        const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
         expect(await memberNft.tokenExpiry(tokenId)).to.equal(expiration)
       })
 
@@ -169,7 +163,6 @@ describe.only('KycdaoNtnft Membership', function () {
   describe('updating status', function () {
     it('To new expiry, updates expiry', async function () {
       const currBlockTime = await blockTime()
-      const expiration = currBlockTime + 1000
       await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
       await memberNftAsAnyone.mint(456)
       const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
