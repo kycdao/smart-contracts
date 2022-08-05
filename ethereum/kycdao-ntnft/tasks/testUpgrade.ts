@@ -8,7 +8,7 @@ task("testUpgrade", "Tests the upgradeability of a contract")
     const testContract = (await hre.ethers.getContractFactory(contract)) as ContractFactory
 
     console.log(`Deploying ${contract}...`)
-    const deployedContract = await hre.upgrades.deployProxy(testContract, args, {initializer: 'initialize', kind: 'uups'})
+    const deployedContract = await hre.upgrades.deployProxy(testContract, [args.name, args.symbol, args.baseURI, args.verificationBaseURI], {initializer: 'initializeStd', kind: 'uups'})
     await deployedContract.deployed()
     console.log(`${contract} deployed to: ${deployedContract.address}`)
 });

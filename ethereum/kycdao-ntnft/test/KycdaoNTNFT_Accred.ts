@@ -57,6 +57,8 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
   beforeEach(async function () {
     const KycdaoNTNFTDeployed = await KycdaoNTNFTAccredAbstract.deploy() as KycdaoNTNFTAccreditation
     await KycdaoNTNFTDeployed.deployed()
+    //TODO: We should deploy the proxy via xdeploy to test this properly,
+    //      but the Create2DeployerLocal.sol is failing at the moment
     const proxyDeployed = await ProxyAbstract.deploy() as ProxyUUPS
     await proxyDeployed.deployed()
     await proxyDeployed.initProxy(KycdaoNTNFTDeployed.address, initData)
