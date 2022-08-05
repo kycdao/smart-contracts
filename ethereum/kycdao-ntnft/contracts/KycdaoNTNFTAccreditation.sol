@@ -64,17 +64,39 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         _disableInitializers();
     }
 
-    /// @dev initialize sets the contract metadata and the roles
-    /// @param name_ Token name
-    /// @param symbol_ Token symbol
-    /// @param metadataBaseURI_ Base URI for metadata CIDs
-    /// @param verificationDataBaseURI_ Base URI for verification paths
+    /// @dev This initialize is called by our ProxyUUPS which calls
+    /// this initialize whilst initializing itself
     function initialize(
         string memory name_,
         string memory symbol_,
         string memory metadataBaseURI_,
         string memory verificationDataBaseURI_
     )  public onlyInitializing {
+        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_);
+    }
+
+    /// @dev This initialize is used to support the standard UUPS Proxy,
+    /// which calls this function as the first initialize 
+    function initializeStd(
+        string memory name_,
+        string memory symbol_,
+        string memory metadataBaseURI_,
+        string memory verificationDataBaseURI_
+    )  public initializer {
+        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_);
+    }
+
+    /// @dev initialize sets the contract metadata and the roles
+    /// @param name_ Token name
+    /// @param symbol_ Token symbol
+    /// @param metadataBaseURI_ Base URI for metadata CIDs
+    /// @param verificationDataBaseURI_ Base URI for verification paths
+    function _initialize(
+        string memory name_,
+        string memory symbol_,
+        string memory metadataBaseURI_,
+        string memory verificationDataBaseURI_
+    )  internal onlyInitializing {
         __ERC721_init(name_, symbol_);
         _setupRole(MINTER_ROLE, _msgSender());
         _setupRole(OWNER_ROLE, _msgSender());
