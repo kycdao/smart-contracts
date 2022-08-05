@@ -9,7 +9,7 @@ task("upgrade", "Upgrades the impl for a proxy contract to a network")
     .setAction(async ({ contract, proxyAddress }, hre) => {
 
         // Check gas price first
-        checkGasPrice(hre)
+        await checkGasPrice(hre)
 
         //Deploy implementation contract    
         // Deploy logic contract if needed

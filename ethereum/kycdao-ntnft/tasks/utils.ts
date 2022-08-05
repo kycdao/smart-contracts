@@ -35,12 +35,12 @@ function xdeployResultPath(hre:any) {
       )
 }
 
-function logicDeployPath(hre:any) {
+function logicDeployPath(hre:any, contract:string) {
     return path.normalize(
         path.join(
           hre.config.paths.root,
           "deployments",
-          `${hre.network.name}_deployment_logic.json`
+          `${hre.network.name}_deployment_${contract}.json`
         )
       )
 }
@@ -59,8 +59,8 @@ function getXdeployResult(hre:any) {
     return require(xdeployResultPath(hre))
 }
 
-function getLogicDeployResult(hre:any) {
-    const logicPath = logicDeployPath(hre)
+function getLogicDeployResult(hre:any, contract:string) {
+    const logicPath = logicDeployPath(hre, contract)
     if (existsSync(logicPath)) {
         return require(logicPath)
     } else {
@@ -104,10 +104,10 @@ async function checkGasPrice(hre:any) {
     }    
 }
 
-async function deployLogic(hre:any, contract:any): Promise<string> {
+async function deployLogic(hre:any, contract:string): Promise<string> {
     console.log('Looking for existing logic deploy with same bytecode...')
     const logicContract = (await hre.ethers.getContractFactory(contract)) as ContractFactory
-    const logicDeploy = getLogicDeployResult(hre)
+    const logicDeploy = getLogicDeployResult(hre, contract)
     
     let deployedLogicAddr: string
     if (logicDeploy && logicDeploy.bytecode == logicContract.bytecode) {
@@ -126,19 +126,20 @@ async function deployLogic(hre:any, contract:any): Promise<string> {
             nonce: deployedLogic.deployTransaction.nonce,
             address: deployedLogic.address
         })
-        await deployedLogic.deployTransaction.wait(1)
+        await deployedLogic.deployed()
+
         console.log(`Logic contract deployed at: ${deployedLogic.address}`)
         console.log('Saving logic deploy to result file...')
         const result = {
             address: deployedLogic.address,
             bytecode: logicContract.bytecode
         }
-        writeFileSync(logicDeployPath(hre), JSON.stringify(result))
+        writeFileSync(logicDeployPath(hre, contract), JSON.stringify(result))
         deployedLogicAddr = deployedLogic.address
 
         console.log('Verifying source...')
         console.log('Waiting for 5 confirmations...')
-        await deployedLogic.wait(5)
+        await deployedLogic.deployTransaction.wait(5)
         await hre.run("verify:verify", {
             address: deployedLogicAddr,
             contract: `contracts/${contract}.sol:${contract}`
