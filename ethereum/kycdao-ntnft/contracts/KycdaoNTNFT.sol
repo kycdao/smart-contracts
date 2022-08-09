@@ -54,14 +54,14 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     END Version 0.2 VARIABLE DECLARATION
     *****************/
 
-    uint public constant WEI_TO_MATIC_DECIMALS = 18;
+    uint public constant WEI_TO_NATIVE_DECIMALS = 18;
 
     /// @notice The cost required for minting, expressed in USD
     /// but with MINT_COST_DECIAMLS zeroes to allow for smaller values
     uint public mintCost;
     uint public constant MINT_COST_DECIMALS = 8;
 
-    AggregatorV3Interface internal maticUSDPriceFeed;
+    AggregatorV3Interface internal nativeUSDPriceFeed;
     mapping(bytes32 => bool) private authorizedSkipPayments; /* Whether to skip mint payments */    
 
     /*****************
@@ -85,9 +85,9 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         string memory symbol_,
         string memory metadataBaseURI_,
         string memory verificationDataBaseURI_,
-        address maticUSDPriceFeedAddr
+        address nativeUSDPriceFeedAddr
     )  public onlyInitializing {
-        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_, maticUSDPriceFeedAddr);
+        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_, nativeUSDPriceFeedAddr);
     }
 
     /// @dev This initialize is used to support the standard UUPS Proxy,
@@ -97,9 +97,9 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         string memory symbol_,
         string memory metadataBaseURI_,
         string memory verificationDataBaseURI_,
-        address maticUSDPriceFeedAddr
+        address nativeUSDPriceFeedAddr
     )  public initializer {
-        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_, maticUSDPriceFeedAddr);
+        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_, nativeUSDPriceFeedAddr);
     }
 
     /// @dev initialize sets the contract metadata and the roles
@@ -112,7 +112,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         string memory symbol_,
         string memory metadataBaseURI_,
         string memory verificationDataBaseURI_,
-        address maticUSDPriceFeedAddr
+        address nativeUSDPriceFeedAddr
     )  internal onlyInitializing {
         __ERC721_init(name_, symbol_);
         _setupRole(MINTER_ROLE, _msgSender());
@@ -123,7 +123,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
         sendGasOnAuthorization = 0;
         mintCost = 5 * 10 ** MINT_COST_DECIMALS;
-        maticUSDPriceFeed = AggregatorV3Interface(maticUSDPriceFeedAddr);
+        nativeUSDPriceFeed = AggregatorV3Interface(nativeUSDPriceFeedAddr);
     }
 
     /*****************
@@ -144,7 +144,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
         // check for payment or whether it should be skipped
         if (!_skipPayment) {
-            require(msg.value >= getMintPriceMatic(), "Insufficient payment for minting");
+            require(msg.value >= getMintPriceNative(), "Insufficient payment for minting");
         }
 
         delete authorizedMetadataCIDs[_digest];
@@ -276,18 +276,18 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     }
 
     /**
-     * @notice Returns the amount in MATIC (wei) which is expected
+     * @notice Returns the amount in NATIVE (wei) which is expected
      * when minting
      */
-    function getMintPriceMatic() public view returns (uint) {
+    function getMintPriceNative() public view returns (uint) {
         (
             /*uint80 roundID*/,
             int price,
             /*uint startedAt*/,
             /*uint timeStamp*/,
             /*uint80 answeredInRound*/
-        ) = maticUSDPriceFeed.latestRoundData();
-        uint decimalConvert = 10 ** WEI_TO_MATIC_DECIMALS / 10 ** maticUSDPriceFeed.decimals();
+        ) = nativeUSDPriceFeed.latestRoundData();
+        uint decimalConvert = 10 ** WEI_TO_NATIVE_DECIMALS / 10 ** nativeUSDPriceFeed.decimals();
         return (uint(price) * mintCost * decimalConvert) / 10 ** MINT_COST_DECIMALS;
     }
 
@@ -311,6 +311,12 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
     ///@dev fallback function to accept any payment
     receive() external payable {
+    }
+
+    ///@dev for retrieving all payments sent to contract
+    function sendBalanceTo(address payable recipient_) public {
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+        recipient_.transfer(address(this).balance);
     }
 
     /*****************
