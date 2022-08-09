@@ -46,6 +46,8 @@ describe.only('KycdaoNtnft Membership', function () {
   let expiration: number
   let expectedMintCost: BigNumber
 
+  let implAddr: string
+
   this.beforeAll(async function () {
     ;[deployer, minter, anyone] = await ethers.getSigners()
 
@@ -64,6 +66,7 @@ describe.only('KycdaoNtnft Membership', function () {
 
     const KycdaoNTNFTDeployed = await KycdaoNTNFTAbstract.deploy() as KycdaoNTNFT
     await KycdaoNTNFTDeployed.deployed()
+    implAddr = KycdaoNTNFTDeployed.address
     //TODO: We should deploy the proxy via xdeploy to test this properly,
     //      but the Create2DeployerLocal.sol is failing at the moment
     const proxyDeployed = await ProxyAbstract.deploy() as ProxyUUPS
@@ -81,7 +84,7 @@ describe.only('KycdaoNtnft Membership', function () {
     const currBlockTime = await blockTime()
     expiration = currBlockTime + 1000
 
-    expectedMintCost = await memberNft.getMintPriceMatic()
+    expectedMintCost = await memberNft.getMintPriceNative()
   })
 
   describe('minting', function () {
@@ -231,6 +234,65 @@ describe.only('KycdaoNtnft Membership', function () {
       expect(await memberNft.tokenIsRevoked(tokenId)).to.equal(false)
       expect(await memberNft.hasValidToken(anyone.address)).to.equal(true)
     })     
+  })
+
+  describe('changing mint cost', function () {
+    it('fails when not called by owner', async function () {
+      const curMintCost = await memberNft.mintCost()
+      const newCost = curMintCost.add(2000)
+      expect(memberNftAsAnyone.setMintCost(newCost)).to.be.revertedWith('!owner')
+    })
+
+    it('updates the mint cost', async function () {
+      const curMintCost = await memberNft.mintCost()
+      const newCost = curMintCost.add(2000)
+      await memberNft.setMintCost(newCost)
+      expect(await memberNft.mintCost()).to.equal(newCost)
+    })
+
+    it('updates the expected native mint cost', async function () {
+      const curNativeMintCost = await memberNft.getMintPriceNative()
+      const curMintCost = await memberNft.mintCost()
+      const newCost = curMintCost.add(2000)
+      await memberNft.setMintCost(newCost)
+      expect(await memberNft.mintCost()).to.equal(newCost)
+      expect(curNativeMintCost.lt(await memberNft.getMintPriceNative())).to.be.true
+    })
+    
+    it('fails minting using original amount after updating to a higher price', async function () {
+      const curNativeMintCost = await memberNft.getMintPriceNative()
+      const curMintCost = await memberNft.mintCost()
+      const newCost = curMintCost.add(2000)
+      await memberNft.setMintCost(newCost)
+      await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+      expect(memberNftAsAnyone.mint(456, {value: curNativeMintCost})).to.be.revertedWith('Insufficient payment for minting')
+    })
+
+    it('mints using new amount after updating to a higher price', async function () {
+      const curMintCost = await memberNft.mintCost()
+      const newCost = curMintCost.add(2000)
+      await memberNft.setMintCost(newCost)
+      const newNativeMintCost = await memberNft.getMintPriceNative()      
+      await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+      await memberNftAsAnyone.mint(456, {value: newNativeMintCost})
+      expect(await memberNft.balanceOf(anyone.address)).to.equal(1)
+    })    
+  })
+
+  describe('retrieving payments from contract', function () {
+    it('sends balance to an address given', async function () {
+      await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+      await memberNftAsAnyone.mint(456, {value: expectedMintCost})
+      const initialBal = await ethers.provider.getBalance(anyone.address)
+      await memberNft.sendBalanceTo(anyone.address)
+      const finalBal = await ethers.provider.getBalance(anyone.address)
+      expect(finalBal).to.equal(initialBal.add(expectedMintCost))
+    })
+
+    it('fails when not called by owner', async function () {
+      expect(memberNftAsAnyone.sendBalanceTo(anyone.address)).to.be.revertedWith('!owner')
+    })
+    
   })
 
 })
