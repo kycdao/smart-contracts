@@ -10,7 +10,7 @@
 }
 
 // List of networks where we need to manually set gasPrice
-const NETWORKS_MANUAL_GAS = ['polygon']
+const NETWORKS_MANUAL_GAS = ['polygon', 'mumbai']
 
 export {
     NETWORK_CONGESTION_THRESHOLDS,

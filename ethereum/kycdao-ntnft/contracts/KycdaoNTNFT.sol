@@ -8,6 +8,7 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@opengsn/contracts/src/BaseRelayRecipient.sol";
 import "./interfaces/IKycdaoNTNFTStatus.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 /// @title KycdaoNTNFT
 /// @dev Non-transferable NFT for KycDAO
@@ -51,10 +52,23 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
     /*****************
     END Version 0.2 VARIABLE DECLARATION
+    *****************/
+
+    uint public constant WEI_TO_MATIC_DECIMALS = 18;
+
+    /// @notice The cost required for minting, expressed in USD
+    /// but with MINT_COST_DECIAMLS zeroes to allow for smaller values
+    uint public mintCost;
+    uint public constant MINT_COST_DECIMALS = 8;
+
+    AggregatorV3Interface internal maticUSDPriceFeed;
+    mapping(bytes32 => bool) private authorizedSkipPayments; /* Whether to skip mint payments */    
+
+    /*****************
+    END Version 0.3 VARIABLE DECLARATION
 
     NOTICE: To ensure upgradeability, all NEW variables must be declared below.
     To keep track, ensure to add a Version tracker to the end of the new variables declared
-
     *****************/
 
     /// @dev This implementation contract shouldn't be initialized directly
@@ -70,9 +84,10 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         string memory name_,
         string memory symbol_,
         string memory metadataBaseURI_,
-        string memory verificationDataBaseURI_
+        string memory verificationDataBaseURI_,
+        address maticUSDPriceFeedAddr
     )  public onlyInitializing {
-        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_);
+        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_, maticUSDPriceFeedAddr);
     }
 
     /// @dev This initialize is used to support the standard UUPS Proxy,
@@ -81,9 +96,10 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         string memory name_,
         string memory symbol_,
         string memory metadataBaseURI_,
-        string memory verificationDataBaseURI_
+        string memory verificationDataBaseURI_,
+        address maticUSDPriceFeedAddr
     )  public initializer {
-        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_);
+        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_, maticUSDPriceFeedAddr);
     }
 
     /// @dev initialize sets the contract metadata and the roles
@@ -95,7 +111,8 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         string memory name_,
         string memory symbol_,
         string memory metadataBaseURI_,
-        string memory verificationDataBaseURI_
+        string memory verificationDataBaseURI_,
+        address maticUSDPriceFeedAddr
     )  internal onlyInitializing {
         __ERC721_init(name_, symbol_);
         _setupRole(MINTER_ROLE, _msgSender());
@@ -105,6 +122,8 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         _setVerificationBaseURI(verificationDataBaseURI_);
 
         sendGasOnAuthorization = 0;
+        mintCost = 5 * 10 ** MINT_COST_DECIMALS;
+        maticUSDPriceFeed = AggregatorV3Interface(maticUSDPriceFeedAddr);
     }
 
     /*****************
@@ -121,10 +140,17 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         string memory _verification_path = authorizedVerificationPaths[_digest];
         require(bytes(_verification_path).length != 0, "Unauthorized code");
         Status memory _status = authorizedStatuses[_digest];
+        bool _skipPayment = authorizedSkipPayments[_digest];
+
+        // check for payment or whether it should be skipped
+        if (!_skipPayment) {
+            require(msg.value >= getMintPriceMatic(), "Insufficient payment for minting");
+        }
 
         delete authorizedMetadataCIDs[_digest];
         delete authorizedVerificationPaths[_digest];
         delete authorizedStatuses[_digest];
+        delete authorizedSkipPayments[_digest];
 
         // Store token metadata CID and verification path
         // Actual tokenId will be current + 1
@@ -138,7 +164,8 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     }
 
     /// @dev Authorize the minting of a new token
-    function authorizeMinting(uint32 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path, uint _expiry) external {
+    function authorizeMinting(uint32 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path, 
+        uint _expiry, bool _skipPayment) external {
         require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
         bytes32 _digest = _getDigest(_auth_code, _dst);
 
@@ -148,6 +175,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         authorizedVerificationPaths[_digest] = _verification_path;
         //TODO: Should we check that we are given an expiry in the future?
         authorizedStatuses[_digest] = Status (false, _expiry);
+        authorizedSkipPayments[_digest] = _skipPayment;
 
         if (sendGasOnAuthorization > 0) {
             (bool sent, ) = _dst.call{value: sendGasOnAuthorization}("");
@@ -158,6 +186,12 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     /*****************
     Public interfaces
     *****************/
+
+    /// @dev Current version of this smart contract
+    function version() public pure returns (string memory) {
+        return "0.3.0";
+    }
+
     function tokenURI(uint256 tokenId)
         public
         view
@@ -241,6 +275,22 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         return false;
     }
 
+    /**
+     * @notice Returns the amount in MATIC (wei) which is expected
+     * when minting
+     */
+    function getMintPriceMatic() public view returns (uint) {
+        (
+            /*uint80 roundID*/,
+            int price,
+            /*uint startedAt*/,
+            /*uint timeStamp*/,
+            /*uint80 answeredInRound*/
+        ) = maticUSDPriceFeed.latestRoundData();
+        uint decimalConvert = 10 ** WEI_TO_MATIC_DECIMALS / 10 ** maticUSDPriceFeed.decimals();
+        return (uint(price) * mintCost * decimalConvert) / 10 ** MINT_COST_DECIMALS;
+    }
+
     ///@dev Support interfaces for Access Control and ERC721
     function supportsInterface(bytes4 interfaceId)
         public
@@ -286,6 +336,13 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
         sendGasOnAuthorization = value_;
     }
+
+    /// @notice Set the mintCost in USD
+    /// @param value_ uint new mintCost in USD
+    function setMintCost(uint value_) external {
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+        mintCost = value_;
+    }    
 
     /*****************
     Token Status Updates
