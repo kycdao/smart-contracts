@@ -144,6 +144,8 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
         // check for payment or whether it should be skipped
         if (!_skipPayment) {
+            // We can't support native payments in GSN, so we revert to prevent people trying
+            require(msg.sender == _msgSender(), "Native payments via GSN not supported");
             require(msg.value >= getMintPriceNative(), "Insufficient payment for minting");
         }
 

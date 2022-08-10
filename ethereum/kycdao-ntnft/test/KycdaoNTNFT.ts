@@ -46,8 +46,6 @@ describe.only('KycdaoNtnft Membership', function () {
   let expiration: number
   let expectedMintCost: BigNumber
 
-  let implAddr: string
-
   this.beforeAll(async function () {
     ;[deployer, minter, anyone] = await ethers.getSigners()
 
@@ -66,7 +64,6 @@ describe.only('KycdaoNtnft Membership', function () {
 
     const KycdaoNTNFTDeployed = await KycdaoNTNFTAbstract.deploy() as KycdaoNTNFT
     await KycdaoNTNFTDeployed.deployed()
-    implAddr = KycdaoNTNFTDeployed.address
     //TODO: We should deploy the proxy via xdeploy to test this properly,
     //      but the Create2DeployerLocal.sol is failing at the moment
     const proxyDeployed = await ProxyAbstract.deploy() as ProxyUUPS
@@ -119,20 +116,20 @@ describe.only('KycdaoNtnft Membership', function () {
       it('Fails if mint used twice', async function () {
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
         await memberNftAsAnyone.mint(456, {value: expectedMintCost})
-        expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('Unauthorized code')
+        await expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('Unauthorized code')
       })
     })
 
     describe('mint with differing payments', function () {
       it('Fails to mint with no payment', async function () {
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
-        expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('Insufficient payment for minting')      
+        await expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('Insufficient payment for minting')      
       })
 
       it('Fails to mint with too little payment', async function () {
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
         const lowerPayment = expectedMintCost.sub(100)
-        expect(memberNftAsAnyone.mint(456, {value: lowerPayment})).to.be.revertedWith('Insufficient payment for minting')      
+        await expect(memberNftAsAnyone.mint(456, {value: lowerPayment})).to.be.revertedWith('Insufficient payment for minting')      
       })
 
       it('Mints with too much payment', async function () {
@@ -153,7 +150,7 @@ describe.only('KycdaoNtnft Membership', function () {
       it('Does not allow tokens to be transferred', async function () {
         await memberNftAsMinter.authorizeMinting(123, anyone.address, "ABC123", "uidasd", expiration, false)
         await memberNftAsAnyone.mint(123, {value: expectedMintCost})
-        expect(memberNftAsAnyone.transferFrom(anyone.address, author.address, 1)).to.be.revertedWith('Not transferable!')
+        await expect(memberNftAsAnyone.transferFrom(anyone.address, author.address, 1)).to.be.revertedWith('Not transferable!')
       })
     })
   })
@@ -240,7 +237,7 @@ describe.only('KycdaoNtnft Membership', function () {
     it('fails when not called by owner', async function () {
       const curMintCost = await memberNft.mintCost()
       const newCost = curMintCost.add(2000)
-      expect(memberNftAsAnyone.setMintCost(newCost)).to.be.revertedWith('!owner')
+      await expect(memberNftAsAnyone.setMintCost(newCost)).to.be.revertedWith('!owner')
     })
 
     it('updates the mint cost', async function () {
@@ -265,7 +262,7 @@ describe.only('KycdaoNtnft Membership', function () {
       const newCost = curMintCost.add(2000)
       await memberNft.setMintCost(newCost)
       await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
-      expect(memberNftAsAnyone.mint(456, {value: curNativeMintCost})).to.be.revertedWith('Insufficient payment for minting')
+      await expect(memberNftAsAnyone.mint(456, {value: curNativeMintCost})).to.be.revertedWith('Insufficient payment for minting')
     })
 
     it('mints using new amount after updating to a higher price', async function () {
@@ -290,7 +287,7 @@ describe.only('KycdaoNtnft Membership', function () {
     })
 
     it('fails when not called by owner', async function () {
-      expect(memberNftAsAnyone.sendBalanceTo(anyone.address)).to.be.revertedWith('!owner')
+      await expect(memberNftAsAnyone.sendBalanceTo(anyone.address)).to.be.revertedWith('!owner')
     })
     
   })
