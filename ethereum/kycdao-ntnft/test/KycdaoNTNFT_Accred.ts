@@ -55,23 +55,33 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
   })
 
   beforeEach(async function () {
+    console.log('here 1')
     const KycdaoNTNFTDeployed = await KycdaoNTNFTAccredAbstract.deploy() as KycdaoNTNFTAccreditation
     await KycdaoNTNFTDeployed.deployed()
+    console.log('here 2')
     //TODO: We should deploy the proxy via xdeploy to test this properly,
     //      but the Create2DeployerLocal.sol is failing at the moment
     const proxyDeployed = await ProxyAbstract.deploy() as ProxyUUPS
     await proxyDeployed.deployed()
+    console.log('here 3')
     await proxyDeployed.initProxy(KycdaoNTNFTDeployed.address, initData)
+    console.log('here 4')
     const KycdaoNTNFT = KycdaoNTNFTAccredAbstract.attach(proxyDeployed.address) as KycdaoNTNFTAccreditation
     memberNft = await KycdaoNTNFT.connect(deployer)
     memberNftAsMinter = await KycdaoNTNFT.connect(minter)
     memberNftAsAnyone = await KycdaoNTNFT.connect(anyone)
 
+    console.log('here 5')
+
     await memberNft.grantRole(minterRole, minter.address)
     await memberNft.grantRole(minterRole, author.address)
 
+    console.log('here 6')
+
     const currBlockTime = await blockTime()
     expiration = currBlockTime + 1000  
+
+    console.log('here 7')
   })
 
   describe('minting', function () {
@@ -81,6 +91,7 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
         expect(await memberNft.balanceOf(anyone.address)).to.equal(0)
       })
     })
+  
 
     describe('mint  with nonce', function () {
       it('Mint a token ', async function () {
@@ -107,7 +118,7 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
       it('Fails if mint used twice', async function () {
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
         await memberNftAsAnyone.mint(456)
-        expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('Unauthorized code')
+        await expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('Unauthorized code')
       })
     })
 
@@ -115,7 +126,7 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
       it('Does not allow tokens to be transferred', async function () {
         await memberNftAsMinter.authorizeMinting(123, anyone.address, "ABC123", "uidasd", expiration)
         await memberNftAsAnyone.mint(123)
-        expect(memberNftAsAnyone.transferFrom(anyone.address, author.address, 1)).to.be.revertedWith('Not transferable!')
+        await expect(memberNftAsAnyone.transferFrom(anyone.address, author.address, 1)).to.be.revertedWith('Not transferable!')
       })
     })
   })
