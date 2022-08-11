@@ -5,15 +5,11 @@ import { use, expect } from 'chai'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 import { KycdaoNTNFTAccreditation } from '../src/types/contracts/KycdaoNTNFTAccreditation'
-import { NTConsumerExample } from '../src/types/contracts/NTConsumerExample.sol/NTConsumerExample'
+import { ProxyUUPS } from '../src/types/contracts/ProxyUUPS'
 import { Wallet } from '@ethersproject/wallet'
 import { ContractFactory } from '@ethersproject/contracts'
 
 use(solidity)
-
-// chai
-//   .use(require('chai-as-promised'))
-//   .should();
 
 const zeroAddress = '0x0000000000000000000000000000000000000000'
 
@@ -40,7 +36,11 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
 
   let author: Wallet
 
-  let MemberNft: ContractFactory
+  let KycdaoNTNFTAccredAbstract: ContractFactory
+  let ProxyAbstract: ContractFactory
+  let initData: string
+
+  let expiration: number
 
   this.beforeAll(async function () {
     ;[deployer, minter, anyone] = await ethers.getSigners()
@@ -49,25 +49,32 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
     const provider = ethers.provider
     author = await adminAbstract.connect(provider)
 
-    MemberNft = await ethers.getContractFactory('KycdaoNTNFTAccreditation')
+    KycdaoNTNFTAccredAbstract = await ethers.getContractFactory('KycdaoNTNFTAccreditation')
+    ProxyAbstract = await ethers.getContractFactory('ProxyUUPS')
+    initData = KycdaoNTNFTAccredAbstract.interface.encodeFunctionData('initialize', ['test', 'TEST', 'metadataURI', 'verificationURI'])
   })
 
   beforeEach(async function () {
-    const memberNftAbstract = await upgrades.deployProxy(MemberNft, ['test', 'TEST', 'metadataURI', 'verificationURI'], {initializer: 'initialize', kind: 'uups'}) as KycdaoNTNFTAccreditation
-    await memberNftAbstract.deployed()
-    memberNft = await memberNftAbstract.connect(deployer)
-    memberNftAsMinter = await memberNftAbstract.connect(minter)
-    memberNftAsAnyone = await memberNftAbstract.connect(anyone)
+    const KycdaoNTNFTDeployed = await KycdaoNTNFTAccredAbstract.deploy() as KycdaoNTNFTAccreditation
+    await KycdaoNTNFTDeployed.deployed()
+    const proxyDeployed = await ProxyAbstract.deploy() as ProxyUUPS
+    await proxyDeployed.deployed()
+    await proxyDeployed.initProxy(KycdaoNTNFTDeployed.address, initData)
+    const KycdaoNTNFT = KycdaoNTNFTAccredAbstract.attach(proxyDeployed.address) as KycdaoNTNFTAccreditation
+    memberNft = await KycdaoNTNFT.connect(deployer)
+    memberNftAsMinter = await KycdaoNTNFT.connect(minter)
+    memberNftAsAnyone = await KycdaoNTNFT.connect(anyone)
 
     await memberNft.grantRole(minterRole, minter.address)
     await memberNft.grantRole(minterRole, author.address)
+
+    const currBlockTime = await blockTime()
+    expiration = currBlockTime + 1000  
   })
 
   describe('minting', function () {
     describe('mint  admin', function () {
       it('Authorize minter to mint a token ', async function () {
-        const currBlockTime = await blockTime()
-        const expiration = currBlockTime + 1000
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
         expect(await memberNft.balanceOf(anyone.address)).to.equal(0)
       })
@@ -75,8 +82,6 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
 
     describe('mint  with nonce', function () {
       it('Mint a token ', async function () {
-        const currBlockTime = await blockTime()
-        const expiration = currBlockTime + 1000        
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
         await memberNftAsAnyone.mint(456)
         expect(await memberNft.balanceOf(anyone.address)).to.equal(1)
@@ -84,16 +89,12 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
       })
 
       it('Updates total supply ', async function () {
-        const currBlockTime = await blockTime()
-        const expiration = currBlockTime + 1000        
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
         await memberNftAsAnyone.mint(456)
         expect(await memberNft.totalSupply()).to.equal(1)
       })
 
       it('Allows enumeration ', async function () {
-        const currBlockTime = await blockTime()
-        const expiration = currBlockTime + 1000        
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
         await memberNftAsAnyone.mint(456)
         expect(await memberNft.tokenOfOwnerByIndex(anyone.address, 0)).to.equal(1)
@@ -101,8 +102,6 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
       })
 
       it('Fails if mint used twice', async function () {
-        const currBlockTime = await blockTime()
-        const expiration = currBlockTime + 1000        
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
         await memberNftAsAnyone.mint(456)
         expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('Unauthorized code')
@@ -111,8 +110,6 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
 
     describe('no transfers', function () {
       it('Does not allow tokens to be transferred', async function () {
-        const currBlockTime = await blockTime()
-        const expiration = currBlockTime + 1000        
         await memberNftAsMinter.authorizeMinting(123, anyone.address, "ABC123", "uidasd", expiration)
         await memberNftAsAnyone.mint(123)
         expect(memberNftAsAnyone.transferFrom(anyone.address, author.address, 1)).to.be.revertedWith('Not transferable!')
@@ -123,8 +120,6 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
   describe('status', function () {
     describe('checking status for existing token', function () {
       it('Has valid expiry', async function () {
-        const currBlockTime = await blockTime()
-        const expiration = currBlockTime + 1000
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
         await memberNftAsAnyone.mint(456)
         const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
@@ -132,8 +127,6 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
       })
 
       it('Is not revoked', async function () {
-        const currBlockTime = await blockTime()
-        const expiration = currBlockTime + 1000
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
         await memberNftAsAnyone.mint(456)
         const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
@@ -142,8 +135,6 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
 
       it('Has valid NFT', async function () {
         expect(await memberNft.hasValidToken(anyone.address)).to.equal(false)
-        const currBlockTime = await blockTime()
-        const expiration = currBlockTime + 1000
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
         await memberNftAsAnyone.mint(456)
         const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
@@ -171,7 +162,6 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
   describe('updating status', function () {
     it('To new expiry, updates expiry', async function () {
       const currBlockTime = await blockTime()
-      const expiration = currBlockTime + 1000
       await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
       await memberNftAsAnyone.mint(456)
       const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
@@ -182,7 +172,6 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
 
     it('To expiry in the past, updates expiry and invalidates token', async function () {
       const currBlockTime = await blockTime()
-      const expiration = currBlockTime + 1000
       await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
       await memberNftAsAnyone.mint(456)
       const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
@@ -193,8 +182,6 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
     })
 
     it('By revoking, revokes token', async function () {
-      const currBlockTime = await blockTime()
-      const expiration = currBlockTime + 1000
       await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
       await memberNftAsAnyone.mint(456)
       const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)

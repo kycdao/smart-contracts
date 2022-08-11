@@ -105,7 +105,8 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         delete authorizedStatuses[_digest];
 
         // Store token metadata CID and verification path
-        uint256 _id = _tokenIds.current();
+        // Actual tokenId will be current + 1
+        uint256 _id = _tokenIds.current() + 1;
         tokenMetadataCIDs[_id] = _metadata_cid;
         tokenVerificationPaths[_id] = _verification_path;
         tokenStatuses[_id] = _status;
@@ -269,7 +270,7 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
     *****************/
 
     function setRevokeToken(uint _tokenId, bool _revoked) external override {
-        require(hasRole(MINTER_ROLE, _msgSender()), "!owner");
+        require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
         require(
             _exists(_tokenId),
             "revokeToken for nonexistent token"
@@ -278,7 +279,7 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
     }
 
     function updateExpiry(uint tokenId_, uint expiry_) external override {
-        require(hasRole(MINTER_ROLE, _msgSender()), "!owner");
+        require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
         require(
             _exists(tokenId_),
             "updateExpiry for nonexistent token"
