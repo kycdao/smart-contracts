@@ -55,33 +55,23 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
   })
 
   beforeEach(async function () {
-    console.log('here 1')
     const KycdaoNTNFTDeployed = await KycdaoNTNFTAccredAbstract.deploy() as KycdaoNTNFTAccreditation
     await KycdaoNTNFTDeployed.deployed()
-    console.log('here 2')
     //TODO: We should deploy the proxy via xdeploy to test this properly,
     //      but the Create2DeployerLocal.sol is failing at the moment
     const proxyDeployed = await ProxyAbstract.deploy() as ProxyUUPS
     await proxyDeployed.deployed()
-    console.log('here 3')
     await proxyDeployed.initProxy(KycdaoNTNFTDeployed.address, initData)
-    console.log('here 4')
     const KycdaoNTNFT = KycdaoNTNFTAccredAbstract.attach(proxyDeployed.address) as KycdaoNTNFTAccreditation
     memberNft = await KycdaoNTNFT.connect(deployer)
     memberNftAsMinter = await KycdaoNTNFT.connect(minter)
     memberNftAsAnyone = await KycdaoNTNFT.connect(anyone)
 
-    console.log('here 5')
-
     await memberNft.grantRole(minterRole, minter.address)
     await memberNft.grantRole(minterRole, author.address)
 
-    console.log('here 6')
-
     const currBlockTime = await blockTime()
     expiration = currBlockTime + 1000  
-
-    console.log('here 7')
   })
 
   describe('minting', function () {

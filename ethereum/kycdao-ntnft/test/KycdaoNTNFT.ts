@@ -158,7 +158,6 @@ describe.only('KycdaoNtnft Membership', function () {
   describe('status', function () {
     describe('checking status for existing token', function () {
       it('Has valid expiry', async function () {
-        console.log(`expiration is: ${expiration}`)
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
         await memberNftAsAnyone.mint(456, {value: expectedMintCost})
         const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
