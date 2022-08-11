@@ -57,6 +57,8 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
   beforeEach(async function () {
     const KycdaoNTNFTDeployed = await KycdaoNTNFTAccredAbstract.deploy() as KycdaoNTNFTAccreditation
     await KycdaoNTNFTDeployed.deployed()
+    //TODO: We should deploy the proxy via xdeploy to test this properly,
+    //      but the Create2DeployerLocal.sol is failing at the moment
     const proxyDeployed = await ProxyAbstract.deploy() as ProxyUUPS
     await proxyDeployed.deployed()
     await proxyDeployed.initProxy(KycdaoNTNFTDeployed.address, initData)
@@ -85,7 +87,8 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
         await memberNftAsAnyone.mint(456)
         expect(await memberNft.balanceOf(anyone.address)).to.equal(1)
-        expect(await memberNft.tokenURI(1), "metadataURI/ABC123")
+        const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
+        expect(await memberNft.tokenURI(tokenId), "metadataURI/ABC123")
       })
 
       it('Updates total supply ', async function () {
