@@ -81,6 +81,7 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
         expect(await memberNft.balanceOf(anyone.address)).to.equal(0)
       })
     })
+  
 
     describe('mint  with nonce', function () {
       it('Mint a token ', async function () {
@@ -107,7 +108,7 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
       it('Fails if mint used twice', async function () {
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
         await memberNftAsAnyone.mint(456)
-        expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('Unauthorized code')
+        await expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('Unauthorized code')
       })
     })
 
@@ -115,7 +116,7 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
       it('Does not allow tokens to be transferred', async function () {
         await memberNftAsMinter.authorizeMinting(123, anyone.address, "ABC123", "uidasd", expiration)
         await memberNftAsAnyone.mint(123)
-        expect(memberNftAsAnyone.transferFrom(anyone.address, author.address, 1)).to.be.revertedWith('Not transferable!')
+        await expect(memberNftAsAnyone.transferFrom(anyone.address, author.address, 1)).to.be.revertedWith('Not transferable!')
       })
     })
   })
