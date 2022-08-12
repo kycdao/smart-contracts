@@ -22,6 +22,8 @@ const adminRole = '0x00000000000000000000000000000000000000000000000000000000000
 
 const testKey = '0xdd631135f3a99e4d747d763ab5ead2f2340a69d2a90fab05e20104731365fde3'
 
+const initPriceFeedVal = 1 * 10 ** 8
+
 async function blockTime() {
   const block = await ethers.provider.getBlock('latest')
   return block.timestamp
@@ -59,7 +61,7 @@ describe.only('KycdaoNtnft Membership', function () {
   })
 
   beforeEach(async function () {
-    const PriceFeedDeployed = await PriceFeedAbstract.deploy() as TestPriceFeed
+    const PriceFeedDeployed = await PriceFeedAbstract.deploy(initPriceFeedVal) as TestPriceFeed
     await PriceFeedDeployed.deployed()
 
     const KycdaoNTNFTDeployed = await KycdaoNTNFTAbstract.deploy() as KycdaoNTNFT
@@ -273,6 +275,23 @@ describe.only('KycdaoNtnft Membership', function () {
       await memberNftAsAnyone.mint(456, {value: newNativeMintCost})
       expect(await memberNft.balanceOf(anyone.address)).to.equal(1)
     })    
+  })
+
+  describe('setting pricefeed', function () {
+    it('fails when not called by owner', async function () {
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(initPriceFeedVal) as TestPriceFeed
+      await priceFeedDeployed.deployed()      
+      await expect(memberNftAsAnyone.setPriceFeed(priceFeedDeployed.address)).to.be.revertedWith('!owner')
+    })
+
+    it('sets the price feed to the given address', async function () {
+      const newPriceFeedVal = 2 * initPriceFeedVal
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(newPriceFeedVal) as TestPriceFeed
+      await priceFeedDeployed.deployed()
+      await memberNft.setPriceFeed(priceFeedDeployed.address)
+      const newNativeMintCost = await memberNft.getMintPriceNative()
+      expect(newNativeMintCost).to.equal(expectedMintCost.mul(2))
+    })
   })
 
   describe('retrieving payments from contract', function () {
