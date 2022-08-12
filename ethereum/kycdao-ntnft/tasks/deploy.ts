@@ -2,7 +2,10 @@ import { task } from 'hardhat/config'
 import { ContractFactory } from '@ethersproject/contracts'
 const args = require('../initArgs')
 import { HttpNetworkConfig, HttpNetworkHDAccountsConfig } from 'hardhat/types';
-import { ProxyUUPS } from '../src/types/contracts/ProxyUUPS'
+// TODO: We can't use these types as they don't exist till we compile,
+//       to fix this we'd need to run these via package.json (including option handling)
+//       to ensure the compile runs first
+// import { ProxyUUPS } from '../src/types/contracts/ProxyUUPS'
 import { checkGasPrice, setGasPriceIfReq, removeDebugXdeployResult, 
     asPrivateKey, getXdeployResult, deployLogic } from  './utils'
 
@@ -19,6 +22,9 @@ task("deploy", "Deploys the proxy and logic contract (using xdeploy) to a networ
         await checkGasPrice(hre)
 
         console.log('Ok then, lets start the deployment!\n\n')
+
+        // Compile contracts
+        await hre.run('compile')
 
         // Deploy logic contract if needed
         const logicContract = (await hre.ethers.getContractFactory(contract)) as ContractFactory
@@ -64,7 +70,7 @@ task("deploy", "Deploys the proxy and logic contract (using xdeploy) to a networ
         console.log('Proxy deployed\n\n')
         console.log('Setting proxy to logic contract and running initialize...')
         const proxyContractAbstract = (await hre.ethers.getContractFactory('ProxyUUPS')) as ContractFactory
-        const proxyContract = proxyContractAbstract.attach(xdeployResult.address) as ProxyUUPS
+        const proxyContract = proxyContractAbstract.attach(xdeployResult.address)
         const priceFeedAddr = args.maticUSDPriceFeed[hre.network.name]
         const initData = logicContract.interface.encodeFunctionData('initialize', [args.name, args.symbol, args.baseURI, args.verificationBaseURI, priceFeedAddr])
         await setGasPriceIfReq(hre)
