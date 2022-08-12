@@ -60,7 +60,7 @@ Additionally, at the start of the script, it will check network congestion and i
 
 ### Gas costs
 
-For most networks, automatic gas cost calculation is fine (i.e. you can do nothing). However for some (**Hi Polygon!**) it is required to use an API to check gas costs before each transaction. The script uses a fixed array to determine which networks require this gas cost calculation:
+For most networks, automatic gas cost calculation is fine (i.e. you can do nothing). However, for some (**Hi Polygon!**) it is required to use an API to check gas costs before each transaction. The script uses a fixed array to determine which networks require this gas cost calculation:
 
 `const NETWORKS_MANUAL_GAS = ['polygon']`
 
