@@ -350,7 +350,14 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     function setMintCost(uint value_) external {
         require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
         mintCost = value_;
-    }    
+    }
+
+    /// @notice Set the price feed used for native - USD conversions
+    /// @param address_ address the address of the price feed
+    function setPriceFeed(address address_) external {
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+        nativeUSDPriceFeed = AggregatorV3Interface(address_);
+    }
 
     /*****************
     Token Status Updates

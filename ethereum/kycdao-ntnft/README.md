@@ -38,8 +38,12 @@ You can start a local node (with GSN) to test out deployment with: `npm run loca
 ## Deployment
 Deployment is handled through a custom hardhat task [`deploy`](./tasks/deploy.ts)
 
+Make sure you've set the `ETHERSCAN_API_KEY` and/or `POLYGONSCAN_API_KEY` environment variables!
+
 Example:
-`npx hardhat deploy --contract KycdaoNTNFT --salt 'KycdaoNTNFT v1.0' --network mumbai`
+`npx hardhat deploy --contract KycdaoNTNFT --salt KycdaoNTNFT_KYC --network mumbai`
+OR
+`npx hardhat deploy --contract KycdaoNTNFTAccreditation --salt KycdaoNTNFT_AccreditedInvestor --network mumbai`
 
 As we use [xdeploy](https://github.com/pcaversaccio/xdeployer) (`CREATE2`) for deployment, a deterministic address is always used, regardless of network. Hence `salt` is simply a string used to ensure a unique address is generated - i.e. if `salt` is the same, the same address is generated. If the same `salt` is used to deploy again on the same network, an error will occur saying there is already a contract deployed to that address.
 
@@ -56,7 +60,7 @@ Additionally, at the start of the script, it will check network congestion and i
 
 ### Gas costs
 
-For most networks, automatic gas cost calculation is fine (i.e. you can do nothing). However for some (**Hi Polygon!**) it is required to use an API to check gas costs before each transaction. The script uses a fixed array to determine which networks require this gas cost calculation:
+For most networks, automatic gas cost calculation is fine (i.e. you can do nothing). However, for some (**Hi Polygon!**) it is required to use an API to check gas costs before each transaction. The script uses a fixed array to determine which networks require this gas cost calculation:
 
 `const NETWORKS_MANUAL_GAS = ['polygon']`
 
