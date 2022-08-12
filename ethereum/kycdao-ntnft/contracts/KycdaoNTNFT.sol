@@ -353,7 +353,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     }
 
     /// @notice Set the price feed used for native - USD conversions
-    /// @param value_ uint the address of the price feed
+    /// @param address_ address the address of the price feed
     function setPriceFeed(address address_) external {
         require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
         nativeUSDPriceFeed = AggregatorV3Interface(address_);
