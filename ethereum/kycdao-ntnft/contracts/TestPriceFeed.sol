@@ -7,6 +7,13 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 /// @title TestPriceFeed
 /// @dev Used for testing price feeds on networks where they are not deployed (localnet)
 contract TestPriceFeed is AggregatorV3Interface {
+
+  int256 public answer;
+
+  constructor(int256 _answer) {
+    answer = _answer;
+  }
+
   function decimals() external pure returns (uint8) {
     return 8;
   }
@@ -23,17 +30,17 @@ contract TestPriceFeed is AggregatorV3Interface {
   //values for everything else
   function getRoundData(uint80)
     external
-    pure
+    view
     returns (
-      uint80 roundId,
-      int256 answer,
-      uint256 startedAt,
-      uint256 updatedAt,
-      uint80 answeredInRound
+      uint80 _roundId,
+      int256 _answer,
+      uint256 _startedAt,
+      uint256 _updatedAt,
+      uint80 _answeredInRound
     ) {
         return (
             1,
-            100000000,
+            answer,
             1,
             1,
             1
@@ -44,17 +51,17 @@ contract TestPriceFeed is AggregatorV3Interface {
   //values for everything else
   function latestRoundData()
     external
-    pure
+    view
     returns (
-      uint80 roundId,
-      int256 answer,
-      uint256 startedAt,
-      uint256 updatedAt,
-      uint80 answeredInRound
+      uint80 _roundId,
+      int256 _answer,
+      uint256 _startedAt,
+      uint256 _updatedAt,
+      uint80 _answeredInRound
     ) {
         return (
             1,
-            100000000,
+            answer,
             1,
             1,
             1
