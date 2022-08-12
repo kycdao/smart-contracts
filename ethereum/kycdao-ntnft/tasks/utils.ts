@@ -99,7 +99,7 @@ async function checkGasPrice(hre:any) {
         })
         const response = await p
         if (response != 'y') {
-            return
+            process.exit(1);
         }
     }    
 }
@@ -137,9 +137,10 @@ async function deployLogic(hre:any, contract:string): Promise<string> {
         writeFileSync(logicDeployPath(hre, contract), JSON.stringify(result))
         deployedLogicAddr = deployedLogic.address
 
-        console.log('Verifying source...')
         console.log('Waiting for 5 confirmations...')
         await deployedLogic.deployTransaction.wait(5)
+
+        console.log('Verifying source...')
         await hre.run("verify:verify", {
             address: deployedLogicAddr,
             contract: `contracts/${contract}.sol:${contract}`
