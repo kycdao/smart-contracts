@@ -15,6 +15,7 @@ const { assert } = require('console')
 
 use(solidity)
 
+const initPriceFeedVal = 1 * 10 ** 8
 const minterRole = ethers.utils.solidityKeccak256(['string'], ['MINTER_ROLE'])
 
 async function blockTime() {
@@ -46,7 +47,7 @@ describe.only('KycdaoNtnft Membership with GSN', function () {
     })
 
     beforeEach(async function () {
-        const PriceFeedDeployed = await PriceFeedAbstract.deploy()
+        const PriceFeedDeployed = await PriceFeedAbstract.deploy(initPriceFeedVal)
         await PriceFeedDeployed.deployed()
     
         const KycdaoNTNFTDeployed = await KycdaoNTNFTAbstract.deploy()
