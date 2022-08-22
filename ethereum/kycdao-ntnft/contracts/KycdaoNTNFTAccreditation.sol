@@ -158,6 +158,12 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
     /*****************
     Public interfaces
     *****************/
+
+    /// @dev Current version of this smart contract
+    function version() public pure returns (string memory) {
+        return "0.2.0";
+    }
+
     function tokenURI(uint256 tokenId)
         public
         view
