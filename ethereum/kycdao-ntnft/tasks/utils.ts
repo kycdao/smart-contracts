@@ -1,6 +1,6 @@
 import { ethers } from 'ethers'
 import path from 'path'
-import { existsSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, unlinkSync, writeFileSync, mkdirSync } from 'fs';
 import fetch from 'node-fetch'
 import { NETWORKS_MANUAL_GAS, NETWORK_CONGESTION_THRESHOLDS } from './constants'
 import readline from 'readline'
@@ -60,11 +60,25 @@ function getXdeployResult(hre:any) {
 }
 
 function getLogicDeployResult(hre:any, contract:string) {
+    createDeploymentsDir(hre)
     const logicPath = logicDeployPath(hre, contract)
     if (existsSync(logicPath)) {
         return require(logicPath)
     } else {
         return null
+    }
+}
+
+function createDeploymentsDir(hre:any) {
+    const deploymentsDir = path.normalize(
+        path.join(
+          hre.config.paths.root,
+          "deployments"
+        )
+      )
+    if (!existsSync(deploymentsDir)) {
+        console.log(`Creating deployments directory: ${deploymentsDir}`)
+        mkdirSync(deploymentsDir)
     }
 }
 
