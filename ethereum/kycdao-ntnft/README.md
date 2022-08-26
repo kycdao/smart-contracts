@@ -82,3 +82,10 @@ NOTE: When verifying through a proxy, the proxy address is specified but the log
 You can interact with a deployed contract via: `npx hardhat console --network <NETWORK>`
 It's a standard node REPL. There's a `loadenv.js` file which loads standard vars for use when interacting with the contract. Ensure the contract address is correct for the network you want to use!
 Keys used by the console for non-local chains will come from `test_mnemonic.txt` (test networks) and `mnemonic.txt` (mainnet).
+
+## Retrieving balance from contract
+When users make payments to the contract these assets (such as MATIC) are stored in the Proxy contract itself.
+
+An address with the `OWNER` role can then run the following function to send the current balance of the contract to a specified address:
+
+`function sendBalanceTo(address payable recipient_) public;`
