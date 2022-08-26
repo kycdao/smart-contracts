@@ -6,7 +6,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 import { KycdaoNTNFT } from '../src/types/contracts/KycdaoNTNFT'
 import { ProxyUUPS } from '../src/types/contracts/ProxyUUPS'
-import { TestPriceFeed } from '../src/types/contracts/TestPriceFeed'
+import { TestPriceFeed } from '../src/types/contracts/utils/TestPriceFeed'
 import { Wallet } from '@ethersproject/wallet'
 import { ContractFactory } from '@ethersproject/contracts'
 import { BigNumber } from 'ethers'
@@ -48,7 +48,10 @@ describe.only('KycdaoNtnft Membership', function () {
   let expiration: number
   let expectedMintCost: BigNumber
 
-  this.beforeAll(async function () {
+  let proxyDeployed: ProxyUUPS
+  let implementationAddr: string
+
+    this.beforeAll(async function () {
     ;[deployer, minter, anyone] = await ethers.getSigners()
 
     const adminAbstract = new ethers.Wallet(testKey)
@@ -66,9 +69,10 @@ describe.only('KycdaoNtnft Membership', function () {
 
     const KycdaoNTNFTDeployed = await KycdaoNTNFTAbstract.deploy() as KycdaoNTNFT
     await KycdaoNTNFTDeployed.deployed()
+    implementationAddr = KycdaoNTNFTDeployed.address
     //TODO: We should deploy the proxy via xdeploy to test this properly,
     //      but the Create2DeployerLocal.sol is failing at the moment
-    const proxyDeployed = await ProxyAbstract.deploy() as ProxyUUPS
+    proxyDeployed = await ProxyAbstract.deploy() as ProxyUUPS
     await proxyDeployed.deployed()
     initData = KycdaoNTNFTAbstract.interface.encodeFunctionData('initialize', ['test', 'TEST', 'metadataURI', 'verificationURI', PriceFeedDeployed.address])
     await proxyDeployed.initProxy(KycdaoNTNFTDeployed.address, initData)
@@ -84,6 +88,13 @@ describe.only('KycdaoNtnft Membership', function () {
     expiration = currBlockTime + 1000
 
     expectedMintCost = await memberNft.getMintPriceNative()
+  })
+
+  describe('test proxy', function () {
+    it('should have the correct implementation address', async function () {
+      const proxyImplAddr = await proxyDeployed.getImplementation()
+      expect(proxyImplAddr).to.equal(implementationAddr)
+    })
   })
 
   describe('minting', function () {

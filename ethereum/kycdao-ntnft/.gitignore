@@ -6,8 +6,6 @@ deployments/*
 *.txt
 sample
 coverage
-.solcover.js
-flat.sol
 coverage.json
 .env
 build/*

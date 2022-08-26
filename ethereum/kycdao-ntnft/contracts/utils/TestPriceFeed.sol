@@ -26,7 +26,7 @@ contract TestPriceFeed is AggregatorV3Interface {
     return 1;
   }
 
-  //We currently on care about answer so we can reply with dummy
+  //We currently only care about answer so we can reply with dummy
   //values for everything else
   function getRoundData(uint80)
     external
@@ -47,7 +47,7 @@ contract TestPriceFeed is AggregatorV3Interface {
         );
     }
 
-  //We currently on care about answer so we can reply with dummy
+  //We currently only care about answer so we can reply with dummy
   //values for everything else
   function latestRoundData()
     external
