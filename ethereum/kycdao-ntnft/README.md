@@ -1,4 +1,4 @@
-# KYCDAO Non-transferable NFT - Solidity
+# KYCDAO Non-transferable NFT - Solidity 
 
 For details on making compatible changes to the contracts please see [Upgrades.md](./Upgrades.md)
 
