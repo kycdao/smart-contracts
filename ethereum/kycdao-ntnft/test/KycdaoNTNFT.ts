@@ -141,6 +141,19 @@ describe.only('KycdaoNtnft Membership', function () {
         expect(await memberNft.balanceOf(anyone.address)).to.equal(1)
       })
 
+      it('Refunds any additional amount above expected payment', async function () {
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+        const higherPayment = expectedMintCost.add(100)
+        const initBalance = await anyone.getBalance()
+        const tx = await memberNftAsAnyone.mint(456, {value: higherPayment})
+        const res = await tx.wait()
+        const postBalance = await anyone.getBalance()
+        const gasCost = res.gasUsed.mul(res.effectiveGasPrice)
+
+        expect(await memberNft.balanceOf(anyone.address)).to.equal(1)
+        expect(postBalance).to.equal(initBalance.sub(expectedMintCost).sub(gasCost))
+      })
+
       it('Mints when no payment is expected', async function () {
         await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, true)
         await memberNftAsAnyone.mint(456)

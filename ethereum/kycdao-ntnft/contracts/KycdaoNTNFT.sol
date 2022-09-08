@@ -143,12 +143,15 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         bool _skipPayment = authorizedSkipPayments[_digest];
 
         // check for payment or whether it should be skipped
+        uint cost = 0; 
         if (!_skipPayment) {
+            cost = getMintPriceNative();
             // We can't support native payments in GSN, so we revert to prevent people trying
             require(msg.sender == _msgSender(), "Native payments via GSN not supported");
-            require(msg.value >= getMintPriceNative(), "Insufficient payment for minting");
+            require(msg.value >= cost, "Insufficient payment for minting");
         }
 
+        // checks passed, continue with minting below
         delete authorizedMetadataCIDs[_digest];
         delete authorizedVerificationPaths[_digest];
         delete authorizedStatuses[_digest];
@@ -163,6 +166,15 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
         // Mint token
         _mintInternal(_dst);
+
+        // Refund any excess payment
+        if (!_skipPayment) {
+            uint refund = msg.value - cost;
+            if (refund > 0) {
+                (bool success, ) = _dst.call{value: refund}("");
+                require(success, "Refund failed");
+            }
+        }
     }
 
     /// @dev Authorize the minting of a new token
