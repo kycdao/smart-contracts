@@ -52,7 +52,7 @@ task("deploy", "Deploys the proxy and logic contract (using xdeploy) to a networ
             signer: privateKey,
             networks: [hre.network.name],
             rpcUrls: [networkConf.url],
-            gasLimit: 1.2 * 10 ** 6,
+            gasLimit: 12 * 10 ** 6,
         }
         console.log('\n\nDeploying proxy...')
         await setGasPriceIfReq(hre)
