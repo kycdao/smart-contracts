@@ -5,7 +5,7 @@ import fetch from 'node-fetch'
 import { NETWORKS_MANUAL_GAS, NETWORK_CONGESTION_THRESHOLDS } from './constants'
 import readline from 'readline'
 import { ContractFactory } from '@ethersproject/contracts'
-const priceFeeds = require('../pricefeeds')
+const priceFeeds = require('../priceFeeds')
 enum PriceFeedType { CHAINLINK, BAND }
 
 /**
