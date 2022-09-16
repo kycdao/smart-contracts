@@ -6,7 +6,9 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 import { KycdaoNTNFT } from '../src/types/contracts/KycdaoNTNFT'
 import { ProxyUUPS } from '../src/types/contracts/ProxyUUPS'
-import { TestPriceFeed } from '../src/types/contracts/TestPriceFeed'
+import { PriceFeed } from '../src/types/contracts/PriceFeed'
+import { TestChainlinkPriceFeed } from '../src/types/contracts/test/TestChainlinkPriceFeed'
+import { TestBandPriceFeed } from '../src/types/contracts/test/TestBandPriceFeed'
 import { Wallet } from '@ethersproject/wallet'
 import { ContractFactory } from '@ethersproject/contracts'
 import { BigNumber } from 'ethers'
@@ -22,7 +24,10 @@ const adminRole = '0x00000000000000000000000000000000000000000000000000000000000
 
 const testKey = '0xdd631135f3a99e4d747d763ab5ead2f2340a69d2a90fab05e20104731365fde3'
 
-const initPriceFeedVal = 1 * 10 ** 8
+const initPriceFeedValChainlink: BigNumber = BigNumber.from(1 * 10 ** 8)
+const initPriceFeedValBand: BigNumber = BigNumber.from(1 * 10).pow(18)
+
+enum PriceFeedType { CHAINLINK, BAND }
 
 async function blockTime() {
   const block = await ethers.provider.getBlock('latest')
@@ -43,6 +48,9 @@ describe.only('KycdaoNtnft Membership', function () {
   let KycdaoNTNFTAbstract: ContractFactory
   let ProxyAbstract: ContractFactory
   let PriceFeedAbstract: ContractFactory
+  let TestChainlinkPriceFeedAbstract: ContractFactory
+  let TestBandPriceFeedAbstract: ContractFactory
+
   let initData: string
 
   let expiration: number
@@ -57,11 +65,16 @@ describe.only('KycdaoNtnft Membership', function () {
 
     KycdaoNTNFTAbstract = await ethers.getContractFactory('KycdaoNTNFT')
     ProxyAbstract = await ethers.getContractFactory('ProxyUUPS')
-    PriceFeedAbstract = await ethers.getContractFactory('TestPriceFeed')
+    PriceFeedAbstract = await ethers.getContractFactory('PriceFeed')
+    TestChainlinkPriceFeedAbstract = await ethers.getContractFactory('TestChainlinkPriceFeed')
+    TestBandPriceFeedAbstract = await ethers.getContractFactory('TestBandPriceFeed')
   })
 
   beforeEach(async function () {
-    const PriceFeedDeployed = await PriceFeedAbstract.deploy(initPriceFeedVal) as TestPriceFeed
+    const ChainlinkPriceFeedDeployed = await TestChainlinkPriceFeedAbstract.deploy(initPriceFeedValChainlink) as PriceFeed
+    await ChainlinkPriceFeedDeployed.deployed()
+
+    const PriceFeedDeployed = await PriceFeedAbstract.deploy(ChainlinkPriceFeedDeployed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
     await PriceFeedDeployed.deployed()
 
     const KycdaoNTNFTDeployed = await KycdaoNTNFTAbstract.deploy() as KycdaoNTNFT
@@ -279,16 +292,51 @@ describe.only('KycdaoNtnft Membership', function () {
 
   describe('setting pricefeed', function () {
     it('fails when not called by owner', async function () {
-      const priceFeedDeployed = await PriceFeedAbstract.deploy(initPriceFeedVal) as TestPriceFeed
+      const chainlinkPriceFeed = await TestChainlinkPriceFeedAbstract.deploy(initPriceFeedValChainlink) as TestChainlinkPriceFeed
+      await chainlinkPriceFeed.deployed()
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
       await priceFeedDeployed.deployed()      
       await expect(memberNftAsAnyone.setPriceFeed(priceFeedDeployed.address)).to.be.revertedWith('!owner')
     })
 
     it('sets the price feed to the given address', async function () {
-      const newPriceFeedVal = 2 * initPriceFeedVal
-      const priceFeedDeployed = await PriceFeedAbstract.deploy(newPriceFeedVal) as TestPriceFeed
+      const newPriceFeedVal = initPriceFeedValChainlink.mul(2)
+      const chainlinkPriceFeed = await TestChainlinkPriceFeedAbstract.deploy(newPriceFeedVal) as TestChainlinkPriceFeed
+      await chainlinkPriceFeed.deployed()
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
       await priceFeedDeployed.deployed()
       await memberNft.setPriceFeed(priceFeedDeployed.address)
+      const newNativeMintCost = await memberNft.getMintPriceNative()
+      expect(newNativeMintCost).to.equal(expectedMintCost.mul(2))
+    })
+
+    it('can use a BAND price feed', async function () {
+      const newPriceFeedVal = initPriceFeedValBand.mul(2)
+      const bandPriceFeed = await TestBandPriceFeedAbstract.deploy(newPriceFeedVal) as TestBandPriceFeed
+      await bandPriceFeed.deployed()
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(bandPriceFeed.address, PriceFeedType.BAND, 'CELO', 'USD') as PriceFeed
+      await priceFeedDeployed.deployed()
+      await memberNft.setPriceFeed(priceFeedDeployed.address)
+      const newNativeMintCost = await memberNft.getMintPriceNative()
+      expect(newNativeMintCost).to.equal(expectedMintCost.mul(2))
+    })
+    
+    it('we can change the price feed to CHAINLINK feed', async function () {
+      const newPriceFeedVal = initPriceFeedValChainlink.mul(2)
+      const chainlinkPriceFeed = await TestChainlinkPriceFeedAbstract.deploy(newPriceFeedVal) as TestChainlinkPriceFeed
+      await chainlinkPriceFeed.deployed()
+      const priceFeedDeployed = PriceFeedAbstract.attach(await memberNft.nativeUSDPriceFeed()) as PriceFeed
+      await priceFeedDeployed.setPriceFeedChainlink(chainlinkPriceFeed.address)
+      const newNativeMintCost = await memberNft.getMintPriceNative()
+      expect(newNativeMintCost).to.equal(expectedMintCost.mul(2))
+    })
+
+    it('we can change the price feed to BAND feed', async function () {
+      const newPriceFeedVal = initPriceFeedValBand.mul(2)
+      const bandPriceFeed = await TestBandPriceFeedAbstract.deploy(newPriceFeedVal) as TestBandPriceFeed
+      await bandPriceFeed.deployed()
+      const priceFeedDeployed = PriceFeedAbstract.attach(await memberNft.nativeUSDPriceFeed()) as PriceFeed
+      await priceFeedDeployed.setPriceFeedBand(bandPriceFeed.address, 'CELO', 'USD')
       const newNativeMintCost = await memberNft.getMintPriceNative()
       expect(newNativeMintCost).to.equal(expectedMintCost.mul(2))
     })

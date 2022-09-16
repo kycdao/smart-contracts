@@ -4,9 +4,9 @@ pragma solidity ^0.8.9;
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
-/// @title TestPriceFeed
+/// @title TestChainlinkPriceFeed
 /// @dev Used for testing price feeds on networks where they are not deployed (localnet)
-contract TestPriceFeed is AggregatorV3Interface {
+contract TestChainlinkPriceFeed is AggregatorV3Interface {
 
   int256 public answer;
 

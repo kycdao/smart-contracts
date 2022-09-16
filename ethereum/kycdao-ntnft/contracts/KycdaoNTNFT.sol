@@ -8,7 +8,7 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@opengsn/contracts/src/BaseRelayRecipient.sol";
 import "./interfaces/IKycdaoNTNFTStatus.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import "./interfaces/IPriceFeed.sol";
 
 /// @title KycdaoNTNFT
 /// @dev Non-transferable NFT for KycDAO
@@ -61,7 +61,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     uint public mintCost;
     uint public constant MINT_COST_DECIMALS = 8;
 
-    AggregatorV3Interface internal nativeUSDPriceFeed;
+    IPriceFeed public nativeUSDPriceFeed;
     mapping(bytes32 => bool) private authorizedSkipPayments; /* Whether to skip mint payments */    
 
     /*****************
@@ -123,7 +123,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
         sendGasOnAuthorization = 0;
         mintCost = 5 * 10 ** MINT_COST_DECIMALS;
-        nativeUSDPriceFeed = AggregatorV3Interface(nativeUSDPriceFeedAddr);
+        nativeUSDPriceFeed = IPriceFeed(nativeUSDPriceFeedAddr);
     }
 
     /*****************
@@ -283,14 +283,11 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
      */
     function getMintPriceNative() public view returns (uint) {
         (
-            /*uint80 roundID*/,
-            int price,
-            /*uint startedAt*/,
-            /*uint timeStamp*/,
-            /*uint80 answeredInRound*/
-        ) = nativeUSDPriceFeed.latestRoundData();
-        uint decimalConvert = 10 ** WEI_TO_NATIVE_DECIMALS / 10 ** nativeUSDPriceFeed.decimals();
-        return (uint(price) * mintCost * decimalConvert) / 10 ** MINT_COST_DECIMALS;
+            uint price,
+            uint8 decimals
+        ) = nativeUSDPriceFeed.lastPrice();
+        uint decimalConvert = 10 ** WEI_TO_NATIVE_DECIMALS / 10 ** decimals;
+        return (price * mintCost * decimalConvert) / 10 ** MINT_COST_DECIMALS;
     }
 
     ///@dev Support interfaces for Access Control and ERC721
@@ -356,7 +353,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     /// @param address_ address the address of the price feed
     function setPriceFeed(address address_) external {
         require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
-        nativeUSDPriceFeed = AggregatorV3Interface(address_);
+        nativeUSDPriceFeed = IPriceFeed(address_);
     }
 
     /*****************
