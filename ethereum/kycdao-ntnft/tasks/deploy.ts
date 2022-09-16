@@ -52,7 +52,7 @@ task("deploy", "Deploys the proxy and logic contract (using xdeploy) to a networ
             signer: privateKey,
             networks: [hre.network.name],
             rpcUrls: [networkConf.url],
-            gasLimit: 1.2 * 10 ** 6,
+            gasLimit: 12 * 10 ** 6,
         }
         console.log('\n\nDeploying proxy...')
         await setGasPriceIfReq(hre)
@@ -72,6 +72,10 @@ task("deploy", "Deploys the proxy and logic contract (using xdeploy) to a networ
         const proxyContractAbstract = (await hre.ethers.getContractFactory('ProxyUUPS')) as ContractFactory
         const proxyContract = proxyContractAbstract.attach(xdeployResult.address)
         const priceFeedAddr = args.maticUSDPriceFeed[hre.network.name]
+        if (!priceFeedAddr) {
+            console.error(`No price feed address found for network ${hre.network.name}`)
+            return
+        }
         const initData = logicContract.interface.encodeFunctionData('initialize', [args.name, args.symbol, args.baseURI, args.verificationBaseURI, priceFeedAddr])
         await setGasPriceIfReq(hre)
         const tx = await proxyContract.initProxy(deployedLogicAddr, initData)

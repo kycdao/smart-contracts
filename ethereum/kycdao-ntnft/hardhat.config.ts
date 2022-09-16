@@ -82,6 +82,20 @@ const config: HardhatUserConfig = {
         mnemonic: test_mnemonic(),
       },      
     },
+    alfajores: {
+      url: "https://alfajores-forno.celo-testnet.org",
+      accounts: {
+        mnemonic: test_mnemonic(),
+      },
+      chainId: 44787
+    },
+    celo: {
+      url: "https://forno.celo.org",
+      accounts: {
+        mnemonic: mnemonic(),
+      },
+      chainId: 42220
+    },    
     fuji: {
       url: 'https://api.avax-test.network/ext/bc/C/rpc',
       accounts: {
