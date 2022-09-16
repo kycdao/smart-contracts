@@ -7,7 +7,7 @@ import { HttpNetworkConfig, HttpNetworkHDAccountsConfig } from 'hardhat/types';
 //       to ensure the compile runs first
 // import { ProxyUUPS } from '../src/types/contracts/ProxyUUPS'
 import { checkGasPrice, setGasPriceIfReq, removeDebugXdeployResult, 
-    asPrivateKey, getXdeployResult, deployLogic } from  './utils'
+    asPrivateKey, getXdeployResult, deployLogic, deployPriceFeed } from  './utils'
 
 /**
  * TASK IMPLEMENTATION
@@ -25,6 +25,9 @@ task("deploy", "Deploys the proxy and logic contract (using xdeploy) to a networ
 
         // Compile contracts
         await hre.run('compile')
+
+        // Deploy price feed if needed
+        const deployedPriceFeedAddr = await deployPriceFeed(hre)
 
         // Deploy logic contract if needed
         const logicContract = (await hre.ethers.getContractFactory(contract)) as ContractFactory
@@ -71,12 +74,7 @@ task("deploy", "Deploys the proxy and logic contract (using xdeploy) to a networ
         console.log('Setting proxy to logic contract and running initialize...')
         const proxyContractAbstract = (await hre.ethers.getContractFactory('ProxyUUPS')) as ContractFactory
         const proxyContract = proxyContractAbstract.attach(xdeployResult.address)
-        const priceFeedAddr = args.maticUSDPriceFeed[hre.network.name]
-        if (!priceFeedAddr) {
-            console.error(`No price feed address found for network ${hre.network.name}`)
-            return
-        }
-        const initData = logicContract.interface.encodeFunctionData('initialize', [args.name, args.symbol, args.baseURI, args.verificationBaseURI, priceFeedAddr])
+        const initData = logicContract.interface.encodeFunctionData('initialize', [args.name, args.symbol, args.baseURI, args.verificationBaseURI, deployedPriceFeedAddr])
         await setGasPriceIfReq(hre)
         const tx = await proxyContract.initProxy(deployedLogicAddr, initData)
         console.log('Done')

@@ -5,6 +5,8 @@ import fetch from 'node-fetch'
 import { NETWORKS_MANUAL_GAS, NETWORK_CONGESTION_THRESHOLDS } from './constants'
 import readline from 'readline'
 import { ContractFactory } from '@ethersproject/contracts'
+const priceFeeds = require('../pricefeeds')
+enum PriceFeedType { CHAINLINK, BAND }
 
 /**
  * UTILITY FUNCTIONS
@@ -45,6 +47,16 @@ function logicDeployPath(hre:any, contract:string) {
       )
 }
 
+function priceFeedDeployPath(hre:any) {
+    return path.normalize(
+        path.join(
+          hre.config.paths.root,
+          "deployments",
+          `${hre.network.name}_deployment_pricefeed.json`
+        )
+      )
+}
+
 function removeDebugXdeployResult(hre:any) {
     const resultPath = xdeployDebugResultPath(hre)
     if (existsSync(resultPath)) unlinkSync(resultPath)
@@ -64,6 +76,16 @@ function getLogicDeployResult(hre:any, contract:string) {
     const logicPath = logicDeployPath(hre, contract)
     if (existsSync(logicPath)) {
         return require(logicPath)
+    } else {
+        return null
+    }
+}
+
+function getPriceFeedDeployResult(hre:any) {
+    createDeploymentsDir(hre)
+    const priceFeedPath = priceFeedDeployPath(hre)
+    if (existsSync(priceFeedPath)) {
+        return require(priceFeedPath)
     } else {
         return null
     }
@@ -116,6 +138,58 @@ async function checkGasPrice(hre:any) {
             process.exit(1);
         }
     }    
+}
+
+async function deployPriceFeed(hre:any): Promise<string> {
+    console.log('Looking for existing price feed deploy with same bytecode...')
+    const priceFeedContract = await hre.ethers.getContractFactory("PriceFeed")
+    const priceFeedDeployResult = getPriceFeedDeployResult(hre)
+    
+    if (priceFeedDeployResult && priceFeedDeployResult.bytecode == priceFeedContract.bytecode) {
+        console.log('Found existing price feed deploy with same bytecode, skipping deploy...')
+        return priceFeedDeployResult.address
+    } else {
+        console.log('No existing price feed deploy found, deploying new price feed...')
+        console.log('Checking which price feed to use for this network...')
+        const priceFeedConf = priceFeeds[hre.network.name]
+        if (!priceFeedConf) {
+            throw new Error(`No price feed configured for network: ${hre.network.name}`)
+        }
+
+        await setGasPriceIfReq(hre)
+        console.log(`Deploying price feed ${priceFeedConf.priceFeedType} at ${priceFeedConf.address}...`)
+        const priceFeed = await priceFeedContract.deploy(...priceFeedDeployArgs(priceFeedConf))
+        await priceFeed.deployed()
+        console.log(`PriceFeed deployed to: ${priceFeed.address}`)
+        console.log('Saving price feed deploy to result file...')
+        const result = {
+            address: priceFeed.address,
+            bytecode: priceFeedContract.bytecode
+        }
+        writeFileSync(priceFeedDeployPath(hre), JSON.stringify(result))
+
+        console.log('Waiting for 5 confirmations...')
+        await priceFeed.deployTransaction.wait(5)
+
+        console.log('Verifying source...')
+        await hre.run("verify:verify", {
+            address: priceFeed.address,
+            contract: `contracts/PriceFeed.sol:PriceFeed`,
+            constructorArguments: priceFeedDeployArgs(priceFeedConf)
+        })
+
+        return priceFeed.address
+    }
+}
+
+function priceFeedDeployArgs(priceFeedConf: any) {
+    if (priceFeedConf.priceFeedType == 'CHAINLINK') {
+        return [priceFeedConf.address, PriceFeedType.CHAINLINK, '', '']
+    } else if (priceFeedConf.priceFeedType == 'BAND') {
+        return [priceFeedConf.address, PriceFeedType.BAND, priceFeedConf.base, priceFeedConf.quote]
+    } else {
+        throw new Error(`Unknown price feed type: ${priceFeedConf.priceFeedType}`)
+    }
 }
 
 async function deployLogic(hre:any, contract:string): Promise<string> {
@@ -172,5 +246,6 @@ export {
     getLogicDeployResult,
     removeDebugXdeployResult,
     logicDeployPath,
-    deployLogic
+    deployLogic,
+    deployPriceFeed
 }
