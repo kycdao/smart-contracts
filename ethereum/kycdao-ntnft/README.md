@@ -49,12 +49,13 @@ As we use [xdeploy](https://github.com/pcaversaccio/xdeployer) (`CREATE2`) for d
 
 The `deploy` task has a few steps:
 
-1. Deploy the logic (implementation) contract
-2. Using `xdeploy`, deploy the proxy contract to a deterministic address
-3. Initialize the proxy contract with the implementation contract
-4. Verify the source for the logic (implementation) contract
+1. Deploy the logic (implementation) contract (if necessary)
+2. Deploy a price feed contract for the given chain (if necessary)
+3. Using `xdeploy`, deploy the proxy contract to a deterministic address
+4. Initialize the proxy contract with the implementation contract
+5. Verify the source for the logic (implementation) contract
 
-If step 1 succeeds but step 2 fails, you can safely restart the script and try again - using files in the `deployments/` directory the script will see the existing implementation and use this instead of redeploying, continuing straight from step 2.
+For both step 1 and 2 (the deployment of implementation and price feed) - the task uses files in the `deployments/` directory to see any existing implementation and uses this instead of redeploying.
 
 Additionally, at the start of the script, it will check network congestion and in the case it is high (meaning a potentially high gas cost), it will ask the user if they'd like to continue.
 
@@ -71,7 +72,7 @@ Upgrades of existing contracts using proxies can be done with the [`upgrade`](./
 
 Example: `npx hardhat upgrade --contract KycdaoNTNFT --proxy-address "0xd9b477cD1a8f8942Aa1054aF1910f0A8cC824694" --network mumbai`
 
-## Verify source code on Etherscan / Polygonscan
+## Verify source code on Etherscan / Polygonscan e.t.c.
 Verifying contract source should mostly be handled by the hardhat tasks mentioned above. If it fails for some reason you can run it with:
 
 `npx hardhat verify CONTRACT_ADDR --network NETWORK`

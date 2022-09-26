@@ -191,7 +191,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
     /// @dev Current version of this smart contract
     function version() public pure returns (string memory) {
-        return "0.3.0";
+        return "0.3.1";
     }
 
     function tokenURI(uint256 tokenId)

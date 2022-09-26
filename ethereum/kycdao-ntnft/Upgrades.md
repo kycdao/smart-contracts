@@ -36,6 +36,15 @@ The `initializer` modifier is used to ensure `initProxy` can only be run once. N
 
 **IMPORTANT**: As the proxy and logic now share the variables used by the inherited base contract `Initialize`, it is therefore important that the first contract inherited by the logic contract is (or itself inherits first) the `Initialize` contract to ensure the variable slot storage is shared between them.
 
+## Changes needed to xdeployer
+
+Unfortunately the existing xdeployer plugin for Hardhat doesn't fully support our needs, so we've had to create a fork of the project which includes our changes.
+
+They are:
+
+1. When calculating gas prices on Polygon, the 'auto' gas amounts returned by nodes on the network always return an amount which is too low, resulting in transactions which will never succeed. For this reason we've made a change to 'xdeployer' to support a manual gasPrice amount specified in the network config in Hardhat.
+2. The CELO network is similar to most EVM chains but has slight differences. In order to fully support deploying to CELO networks, there are wrappers for common libraries (like ethers.js) that need to be used.
+
 ## Testing upgrade compatibility
 
 We use [OpenZeppelin's Upgrades Plugin](https://docs.openzeppelin.com/upgrades-plugins/1.x/) to test any contract changes are 'upgrade compatible'. The plugin makes the life of developers a lot easier by running checks on smart contract code during initial deployment and upgrades, to ensure that the basic rules for upgrading are adhered to and there's no chance of 'breaking' the contract. See [README.md's](./README.md) section 'Testing'.
