@@ -1,12 +1,39 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::{LookupMap, LazyOption};
+use near_sdk::collections::{LookupMap, LazyOption, UnorderedMap};
 use near_sdk::*;
-use near_sdk::env::keccak256;
+use near_sdk::env::{keccak256, block_timestamp};
 use near_contract_standards::upgrade::Ownable;
 use near_contract_standards::ntnft::{Token, NTNFT, TokenId};
 use near_contract_standards::ntnft::metadata::*;
 
 type MintAuthorizationCode = u32;
+
+#[derive(BorshDeserialize, BorshSerialize)]
+struct Status {
+    /// shows if the token is revoked by the issuer
+    is_revoked: bool,
+    /// expiry timestamp
+    expiry: Option<u64>,
+}
+
+impl Status {
+    pub fn is_valid(&self) -> bool {
+        let expired = match self.expiry {
+            Some(exp) => exp <= block_timestamp(),
+            None => false,
+        };
+        !expired && !self.is_revoked
+    }
+}
+
+impl Default for Status {
+    fn default() -> Self {
+        Status {
+            is_revoked: false,
+            expiry: None,
+        }
+    }
+}
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
@@ -15,7 +42,12 @@ pub struct KycdaoNTNFT {
     metadata: LazyOption<NTNFTContractMetadata>,
     next_token_id: u128,
     mint_authorizer: AccountId,
-    authorized_token_metadata: LookupMap<Vec<u8>, TokenMetadata>, // Track if token minting is authorized, store metadata
+    /// tracks if token minting is authorized, stores metadata temporarily
+    authorized_token_metadata: LookupMap<Vec<u8>, TokenMetadata>,
+    /// stores status for authorized (but not yet minted) tokens temporarily
+    authorized_statuses: UnorderedMap<Vec<u8>, Status>,
+    /// stores status for minted tokens
+    token_statuses: UnorderedMap<TokenId, Status>,
 }
 
 const DATA_IMAGE_SVG_ICON: &str = "data:image/svg+xml,%3csvg width='307' height='402' viewBox='0 0 307 402' fill='none' xmlns='http://www.w3.org/2000/svg'%3e%3cmask id='path-1-inside-1_1367_8934' fill='white'%3e%3cpath fill-rule='evenodd' clip-rule='evenodd' d='M305.999 26.6087L279.391 0L152.999 126.391L119.738 93.1305L93.1296 119.739L152.999 179.609L305.999 26.6087ZM0.00195312 26.6093L66.5238 93.1311L93.1325 66.5224L26.6107 0.000546972L0.00195312 26.6093Z'/%3e%3c/mask%3e%3cpath d='M279.391 0L282.219 -2.82843L279.391 -5.65685L276.562 -2.82843L279.391 0ZM305.999 26.6087L308.828 29.4372L311.656 26.6087L308.828 23.7803L305.999 26.6087ZM152.999 126.391L150.171 129.22L152.999 132.048L155.828 129.22L152.999 126.391ZM119.738 93.1305L122.567 90.3021L119.738 87.4737L116.91 90.3021L119.738 93.1305ZM93.1296 119.739L90.3012 116.911L87.4728 119.739L90.3012 122.568L93.1296 119.739ZM152.999 179.609L150.171 182.437L152.999 185.266L155.828 182.437L152.999 179.609ZM66.5238 93.1311L63.6953 95.9595L66.5238 98.7879L69.3522 95.9595L66.5238 93.1311ZM0.00195312 26.6093L-2.82647 23.7808L-5.6549 26.6093L-2.82647 29.4377L0.00195312 26.6093ZM93.1325 66.5224L95.9609 69.3508L98.7893 66.5224L95.9609 63.6939L93.1325 66.5224ZM26.6107 0.000546972L29.4391 -2.82788L26.6107 -5.65631L23.7822 -2.82788L26.6107 0.000546972ZM276.562 2.82843L303.171 29.4372L308.828 23.7803L282.219 -2.82843L276.562 2.82843ZM155.828 129.22L282.219 2.82843L276.562 -2.82843L150.171 123.563L155.828 129.22ZM116.91 95.959L150.171 129.22L155.828 123.563L122.567 90.3021L116.91 95.959ZM95.9581 122.568L122.567 95.959L116.91 90.3021L90.3012 116.911L95.9581 122.568ZM155.828 176.78L95.9581 116.911L90.3012 122.568L150.171 182.437L155.828 176.78ZM303.171 23.7803L150.171 176.78L155.828 182.437L308.828 29.4372L303.171 23.7803ZM69.3522 90.3026L2.83038 23.7808L-2.82647 29.4377L63.6953 95.9595L69.3522 90.3026ZM90.304 63.6939L63.6953 90.3026L69.3522 95.9595L95.9609 69.3508L90.304 63.6939ZM23.7822 2.82897L90.304 69.3508L95.9609 63.6939L29.4391 -2.82788L23.7822 2.82897ZM2.83038 29.4377L29.4391 2.82897L23.7822 -2.82788L-2.82647 23.7808L2.83038 29.4377Z' fill='%233D65F2' mask='url(%23path-1-inside-1_1367_8934)'/%3e%3cmask id='path-3-inside-2_1367_8934' fill='white'%3e%3cpath fill-rule='evenodd' clip-rule='evenodd' d='M305.999 248.298L279.391 221.69L152.999 348.081L119.738 314.82L93.1295 341.429L152.999 401.299L305.999 248.298ZM0.00195312 248.299L66.5238 314.821L93.1325 288.212L26.6107 221.69L0.00195312 248.299Z'/%3e%3c/mask%3e%3cpath d='M279.391 221.69L282.219 218.861L279.391 216.033L276.562 218.861L279.391 221.69ZM305.999 248.298L308.828 251.127L311.656 248.298L308.828 245.47L305.999 248.298ZM152.999 348.081L150.171 350.91L152.999 353.738L155.828 350.91L152.999 348.081ZM119.738 314.82L122.567 311.992L119.738 309.163L116.91 311.992L119.738 314.82ZM93.1295 341.429L90.3011 338.601L87.4727 341.429L90.3011 344.257L93.1295 341.429ZM152.999 401.299L150.171 404.127L152.999 406.955L155.828 404.127L152.999 401.299ZM66.5238 314.821L63.6953 317.649L66.5238 320.478L69.3522 317.649L66.5238 314.821ZM0.00195312 248.299L-2.82647 245.471L-5.6549 248.299L-2.82647 251.127L0.00195312 248.299ZM93.1325 288.212L95.9609 291.04L98.7893 288.212L95.9609 285.384L93.1325 288.212ZM26.6107 221.69L29.4391 218.862L26.6107 216.033L23.7822 218.862L26.6107 221.69ZM276.562 224.518L303.171 251.127L308.828 245.47L282.219 218.861L276.562 224.518ZM155.828 350.91L282.219 224.518L276.562 218.861L150.171 345.253L155.828 350.91ZM116.91 317.649L150.171 350.91L155.828 345.253L122.567 311.992L116.91 317.649ZM95.958 344.257L122.567 317.649L116.91 311.992L90.3011 338.601L95.958 344.257ZM155.828 398.47L95.958 338.601L90.3011 344.257L150.171 404.127L155.828 398.47ZM303.171 245.47L150.171 398.47L155.828 404.127L308.828 251.127L303.171 245.47ZM69.3522 311.992L2.83038 245.471L-2.82647 251.127L63.6953 317.649L69.3522 311.992ZM90.304 285.384L63.6953 311.992L69.3522 317.649L95.9609 291.04L90.304 285.384ZM23.7822 224.519L90.304 291.04L95.9609 285.384L29.4391 218.862L23.7822 224.519ZM2.83038 251.127L29.4391 224.519L23.7822 218.862L-2.82647 245.471L2.83038 251.127Z' fill='%233D65F2' mask='url(%23path-3-inside-2_1367_8934)'/%3e%3cmask id='path-5-inside-3_1367_8934' fill='white'%3e%3cpath fill-rule='evenodd' clip-rule='evenodd' d='M-9.15527e-05 135.407L26.6086 108.798L153 235.19L186.261 201.929L212.87 228.538L153 288.407L-9.15527e-05 135.407ZM306.002 135.408L239.48 201.929L212.871 175.321L279.393 108.799L306.002 135.408Z'/%3e%3c/mask%3e%3cpath d='M26.6086 108.798L23.7802 105.97L26.6086 103.142L29.437 105.97L26.6086 108.798ZM-9.15527e-05 135.407L-2.82852 138.236L-5.65694 135.407L-2.82852 132.579L-9.15527e-05 135.407ZM153 235.19L155.828 238.018L153 240.847L150.172 238.018L153 235.19ZM186.261 201.929L183.433 199.101L186.261 196.272L189.089 199.101L186.261 201.929ZM212.87 228.538L215.698 225.709L218.527 228.538L215.698 231.366L212.87 228.538ZM153 288.407L155.828 291.236L153 294.064L150.172 291.236L153 288.407ZM239.48 201.929L242.309 204.758L239.48 207.586L236.652 204.758L239.48 201.929ZM306.002 135.408L308.83 132.579L311.659 135.408L308.83 138.236L306.002 135.408ZM212.871 175.321L210.043 178.149L207.215 175.321L210.043 172.492L212.871 175.321ZM279.393 108.799L276.565 105.971L279.393 103.142L282.222 105.971L279.393 108.799ZM29.437 111.627L2.82834 138.236L-2.82852 132.579L23.7802 105.97L29.437 111.627ZM150.172 238.018L23.7802 111.627L29.437 105.97L155.828 232.361L150.172 238.018ZM189.089 204.757L155.828 238.018L150.172 232.361L183.433 199.101L189.089 204.757ZM210.041 231.366L183.433 204.757L189.089 199.101L215.698 225.709L210.041 231.366ZM150.172 285.579L210.041 225.709L215.698 231.366L155.828 291.236L150.172 285.579ZM2.82834 132.579L155.828 285.579L150.172 291.236L-2.82852 138.236L2.82834 132.579ZM236.652 199.101L303.174 132.579L308.83 138.236L242.309 204.758L236.652 199.101ZM215.7 172.492L242.309 199.101L236.652 204.758L210.043 178.149L215.7 172.492ZM282.222 111.627L215.7 178.149L210.043 172.492L276.565 105.971L282.222 111.627ZM303.174 138.236L276.565 111.627L282.222 105.971L308.83 132.579L303.174 138.236Z' fill='%233D65F2' mask='url(%23path-5-inside-3_1367_8934)'/%3e%3c/svg%3e";
@@ -27,6 +59,8 @@ enum StorageKey {
     TokenMetadata,
     Enumeration,
     AuthorizedTokenMetadata,
+    AuthorizedStatuses,
+    TokenStatuses,
 }
 
 #[near_bindgen]
@@ -69,6 +103,8 @@ impl KycdaoNTNFT {
             next_token_id: 0,
             mint_authorizer: sender.to_owned(),
             authorized_token_metadata: LookupMap::new(StorageKey::AuthorizedTokenMetadata),
+            authorized_statuses: UnorderedMap::new(StorageKey::AuthorizedStatuses),
+            token_statuses: UnorderedMap::new(StorageKey::TokenStatuses),
         }
     }
 
@@ -124,7 +160,48 @@ impl KycdaoNTNFT {
         format!("{}/{}.json", base_uri, token_metadata.extra.expect("Missing token extra data"))
     }
 
+    /// Check the expiry of the token - None means it never expires
+    pub fn token_expiry(&self, token_id: TokenId) -> Option<u64> {
+        self.token_statuses.get(&token_id).unwrap_or_default().expiry
+    }
+
+    /// Check if the token is revoked
+    pub fn token_is_revoked(&self, token_id: TokenId) -> bool {
+        self.token_statuses.get(&token_id).unwrap_or_default().is_revoked
+    }
+
+    /// Check if an account has any valid tokens
+    pub fn has_valid_token(&self, account_id: AccountId) -> bool {
+        match self.tokens.tokens_per_owner.as_ref().expect("enumeration extension in use").get(&account_id) {
+            Some(token_ids) => {
+                for token_id in token_ids.iter() {
+                    let status = self.token_statuses.get(&token_id).unwrap_or_default();
+                    if status.is_valid() {
+                        return true;
+                    }
+                }
+                false
+            }
+            None => false,
+        }
+    }
+
     // TODO tokenVerificationURI???
+
+    /*****************
+    Admin
+    *****************/
+    pub fn set_revoke_token(&mut self, token_id: TokenId, is_revoked: bool) {
+        let mut status = self.token_statuses.get(&token_id).unwrap_or_default();
+        status.is_revoked = is_revoked;
+        self.token_statuses.insert(&token_id, &status);
+    }
+
+    pub fn update_expiry(&mut self, token_id: TokenId, expiry: Option<u64>) {
+        let mut status = self.token_statuses.get(&token_id).unwrap_or_default();
+        status.expiry = expiry;
+        self.token_statuses.insert(&token_id, &status);
+    }
 
     /*****************
     Config
@@ -225,7 +302,7 @@ mod tests {
     fn test_new() {
         let mut context = get_context(accounts(1));
         testing_env!(context.build());
-        let contract = KycdaoNTNFT::new_default_meta("base".to_string());
+        let contract = KycdaoNTNFT::new_default_meta("base2".to_string());
         testing_env!(context.is_view(true).build());
         assert_eq!(contract.ntnft_token("1".to_string()), None);
     }
@@ -296,5 +373,63 @@ mod tests {
             .build());
 
         contract.mint(123);
+    }
+
+    // TODO fix this - contract state is not deleted between tests
+    #[test]
+    #[ignore]
+    fn test_status_modifications() {
+        let mut context = get_context(accounts(3));
+        testing_env!(context.build());
+        let mut contract = KycdaoNTNFT::new_default_meta("base3".to_string());
+
+        contract.authorize_minting(489, accounts(3), sample_token_metadata("somehash".to_string()));
+
+        testing_env!(context
+            .block_timestamp(1664226405)
+            .storage_usage(env::storage_usage())
+            .attached_deposit(MINT_STORAGE_COST + MINT_COST)
+            .signer_account_id(accounts(3))
+            .predecessor_account_id(accounts(3))
+            .build());
+
+        let token = contract.mint(489);
+
+        assert_eq!(contract.token_expiry(token.token_id.clone()), None);
+        assert_eq!(contract.token_is_revoked(token.token_id.clone()), false);
+        assert_eq!(contract.has_valid_token(accounts(3)), true);
+
+        contract.update_expiry(token.token_id.clone(), Some(1000));
+
+        assert_eq!(contract.token_expiry(token.token_id.clone()), Some(1000));
+        assert_eq!(contract.token_is_revoked(token.token_id.clone()), false);
+        assert_eq!(contract.has_valid_token(accounts(3)), false);
+
+        contract.update_expiry(token.token_id.clone(), Some(9000000000));
+
+        assert_eq!(contract.token_expiry(token.token_id.clone()), Some(9000000000));
+        assert_eq!(contract.token_is_revoked(token.token_id.clone()), false);
+        assert_eq!(contract.has_valid_token(accounts(3)), true);
+
+        contract.set_revoke_token(token.token_id.clone(), true);
+
+        assert_eq!(contract.token_expiry(token.token_id.clone()), Some(9000000000));
+        assert_eq!(contract.token_is_revoked(token.token_id.clone()), true);
+        assert_eq!(contract.has_valid_token(accounts(3)), false);
+
+        contract.authorize_minting(789, accounts(3), sample_token_metadata("other".to_string()));
+
+        testing_env!(context
+            .block_timestamp(1664226405)
+            .storage_usage(env::storage_usage())
+            .attached_deposit(MINT_STORAGE_COST + MINT_COST)
+            .signer_account_id(accounts(3))
+            .predecessor_account_id(accounts(3))
+            .build());
+
+        contract.mint(789);
+
+        // default is valid
+        assert_eq!(contract.has_valid_token(accounts(3)), true);
     }
 }
