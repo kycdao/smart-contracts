@@ -115,6 +115,24 @@ const config: HardhatUserConfig = {
     target: 'ethers-v5',
   },
   etherscan: {
+    customChains: [
+      {
+        network: "celo",
+        chainId: 42220,
+        urls: {
+          apiURL: "https://api.celoscan.io/api",
+          browserURL: "https://celoscan.io"
+        }
+      },
+      {
+        network: "alfajores",
+        chainId: 44787,
+        urls: {
+          apiURL: "https://api-alfajores.celoscan.io/api",
+          browserURL: "https://alfajores.celoscan.io"
+        }
+      }      
+    ],    
     // Your API key for Etherscan
     // Obtain one at https://etherscan.io/
     apiKey: {
@@ -126,7 +144,10 @@ const config: HardhatUserConfig = {
       kovan: process.env.ETHERSCAN_API_KEY || '',
       // Polygon and mumbai testnet (using polygonscan) 
       polygon: process.env.POLYGONSCAN_API_KEY || '',
-      polygonMumbai: process.env.POLYGONSCAN_API_KEY || '',           
+      polygonMumbai: process.env.POLYGONSCAN_API_KEY || '',
+      // CELO and alfajores testnet (using celoscan) 
+      celo: process.env.CELOSCAN_API_KEY || '',
+      alfajores: process.env.CELOSCAN_API_KEY || '',
     }
   },
 }

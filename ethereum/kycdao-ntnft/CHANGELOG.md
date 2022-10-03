@@ -8,6 +8,12 @@ NOTE: This CHANGELOG tracks changes to both contracts covered by kycDAO: **kycDA
 
 ## [Unreleased]
 
+## kycDAONTNFT [0.3.1] - 2022-09-26
+### Added
+- Added generic PriceFeed contract which implements (currently) both Chainlink and Band protocol type price feeds.
+- kycDAONTNFT contract now uses any contract that implements the IPriceFeed interface for calculating mint costs, allowing us to add or change price feeds when needed without affecting the kycDAONTNFT contract.
+- Our fork of the 'xdeployer' Hardhat plugin now includes support for deployment to CELO-like networks.
+
 ## kycDAONTNFT [0.3.0] - 2022-08-12
 ### Added
 - Support for payments for minting via native payments (i.e. ETH or MATIC)
