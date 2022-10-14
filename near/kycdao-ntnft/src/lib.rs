@@ -6,14 +6,16 @@ use near_contract_standards::upgrade::Ownable;
 use near_contract_standards::ntnft::{Token, NTNFT, TokenId};
 use near_contract_standards::ntnft::metadata::*;
 
+use serde::{Serialize, Deserialize};
+
 type MintAuthorizationCode = u32;
 
-#[derive(BorshDeserialize, BorshSerialize)]
-struct Status {
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+pub struct Status {
     /// shows if the token is revoked by the issuer
-    is_revoked: bool,
+    pub is_revoked: bool,
     /// expiry timestamp
-    expiry: Option<u64>,
+    pub expiry: Option<u64>,
 }
 
 impl Status {
@@ -33,6 +35,17 @@ impl Default for Status {
             expiry: None,
         }
     }
+}
+
+#[near_bindgen]
+#[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
+pub struct OldKycdaoNTNFT {
+    tokens: NTNFT,
+    metadata: LazyOption<NTNFTContractMetadata>,
+    next_token_id: u128,
+    mint_authorizer: AccountId,
+    /// tracks if token minting is authorized, stores metadata temporarily
+    authorized_token_metadata: LookupMap<Vec<u8>, TokenMetadata>,
 }
 
 #[near_bindgen]
@@ -108,6 +121,21 @@ impl KycdaoNTNFT {
         }
     }
 
+    #[private]
+    #[init(ignore_state)]
+    pub fn migrate() -> Self {
+        let old_state: OldKycdaoNTNFT = env::state_read().expect("failed");
+        Self {
+            tokens: old_state.tokens,
+            metadata: old_state.metadata,
+            next_token_id: old_state.next_token_id,
+            mint_authorizer: old_state.mint_authorizer,
+            authorized_token_metadata: old_state.authorized_token_metadata,
+            authorized_statuses: UnorderedMap::new(StorageKey::AuthorizedStatuses),
+            token_statuses: UnorderedMap::new(StorageKey::TokenStatuses),
+        }
+    }
+
     /*****************
     Authorized Minting
     *****************/
@@ -123,18 +151,22 @@ impl KycdaoNTNFT {
 
         // Get prefilled metadata, also remove digest so it cannot be used again
         let metadata = self.authorized_token_metadata.remove(&digest).expect("Unauthorized code");
+        let status = self.authorized_statuses.remove(&digest).unwrap_or_default();
 
         let token_id = self.next_token_id;
         self.next_token_id = self.next_token_id.checked_add(1).expect("Token ID overflow");
         let token_id_str = token_id.to_string();
 
-        self.tokens.internal_mint(token_id_str, dst, Some(metadata), None)
+        let token = self.tokens.internal_mint(token_id_str.clone(), dst, Some(metadata), None);
+        self.token_statuses.insert(&token_id_str, &status);
+
+        token
     }
 
     // TODO this has a storage cost!
     // TODO add verification path?
     /// @dev Authorize the minting of a new token
-    pub fn authorize_minting(&mut self, auth_code: MintAuthorizationCode, dst: AccountId, metadata: TokenMetadata) {
+    pub fn authorize_minting(&mut self, auth_code: MintAuthorizationCode, dst: AccountId, metadata: TokenMetadata, status: Option<Status>) {
         self.assert_mint_authorizer();
         let digest = KycdaoNTNFT::get_digest(auth_code, &dst);
 
@@ -143,12 +175,17 @@ impl KycdaoNTNFT {
         let authorized_opt = self.authorized_token_metadata.get(&digest);
         assert!(authorized_opt.is_none(), "Code already authorized");
 
+        let new_status = status.unwrap_or_default();
+
         self.authorized_token_metadata.insert(&digest, &metadata);
+        self.authorized_statuses.insert(&digest, &new_status);
     }
 
     /*****************
     Public interfaces
     *****************/
+    pub fn version(&self) -> &str { "0.2.0" }
+
     pub fn token_uri(&self, token_id: TokenId) -> String {
         let token_metadata_store = self.tokens.token_metadata_by_id.as_ref().expect("Metadata not supported");
         let token_metadata: TokenMetadata = token_metadata_store.get(&token_id).expect("Token not found");
@@ -330,8 +367,8 @@ mod tests {
         testing_env!(context.build());
         let mut contract = KycdaoNTNFT::new_default_meta("base".to_string());
 
-        contract.authorize_minting(123, accounts(2), sample_token_metadata("somehash".to_string()));
-        contract.authorize_minting(365, accounts(2), sample_token_metadata("othersomehash".to_string()));
+        contract.authorize_minting(123, accounts(2), sample_token_metadata("somehash".to_string()), None);
+        contract.authorize_minting(365, accounts(2), sample_token_metadata("othersomehash".to_string()), None);
 
         testing_env!(context
             .storage_usage(env::storage_usage())
@@ -383,7 +420,7 @@ mod tests {
         testing_env!(context.build());
         let mut contract = KycdaoNTNFT::new_default_meta("base3".to_string());
 
-        contract.authorize_minting(489, accounts(3), sample_token_metadata("somehash".to_string()));
+        contract.authorize_minting(489, accounts(3), sample_token_metadata("somehash".to_string()), None);
 
         testing_env!(context
             .block_timestamp(1664226405)
@@ -417,7 +454,7 @@ mod tests {
         assert_eq!(contract.token_is_revoked(token.token_id.clone()), true);
         assert_eq!(contract.has_valid_token(accounts(3)), false);
 
-        contract.authorize_minting(789, accounts(3), sample_token_metadata("other".to_string()));
+        contract.authorize_minting(789, accounts(3), sample_token_metadata("other".to_string()), None);
 
         testing_env!(context
             .block_timestamp(1664226405)
