@@ -420,6 +420,7 @@ mod tests {
         testing_env!(context.build());
         let mut contract = KycdaoNTNFT::new_default_meta("base3".to_string());
 
+        // use default status fallback
         contract.authorize_minting(489, accounts(3), sample_token_metadata("somehash".to_string()), None);
 
         testing_env!(context
@@ -468,5 +469,30 @@ mod tests {
 
         // default is valid
         assert_eq!(contract.has_valid_token(accounts(3)), true);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_status_setting_on_authorization() {
+        let mut context = get_context(accounts(4));
+        testing_env!(context.build());
+        let mut contract = KycdaoNTNFT::new_default_meta("base3".to_string());
+
+        // use default status fallback
+        contract.authorize_minting(6547, accounts(4), sample_token_metadata("somehash".to_string()), Some(Status { is_revoked: true, expiry: Some(9000000000) }));
+
+        testing_env!(context
+            .block_timestamp(1664226405)
+            .storage_usage(env::storage_usage())
+            .attached_deposit(MINT_STORAGE_COST + MINT_COST)
+            .signer_account_id(accounts(4))
+            .predecessor_account_id(accounts(4))
+            .build());
+
+        let token = contract.mint(6547);
+
+        assert_eq!(contract.token_expiry(token.token_id.clone()), Some(9000000000));
+        assert_eq!(contract.token_is_revoked(token.token_id.clone()), true);
+        assert_eq!(contract.has_valid_token(accounts(4)), false);
     }
 }
