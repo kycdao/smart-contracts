@@ -18,5 +18,9 @@ module.exports = {
         address: '0x660cBc25F0cFD31F0Bdcaa43525f0bACC6DB2ABc',
         base: 'CELO',
         quote: 'USD'
+    },
+    goerli: {
+        priceFeedType: 'CHAINLINK',
+        address: '0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e'
     }    
 }
