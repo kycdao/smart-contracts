@@ -41,7 +41,9 @@ Initialize it with the following command:
 `near call <contract_acc> new_default_meta "{\"base_uri\":\"something\"}" --accountId <contract_acc>`
 
 ## Upgrading a contract
-You can simply call `near deploy` again to upgrade a contract. Note: If you change anything in the contract state (`KycdaoNTNFT` struct), then you'll have to write a `migrate` function and call it manually after deployment.
+You can simply call `near deploy` again to upgrade a contract. Don't forget to build the latest version first with `npm run build`.
+
+Note: If you change anything in the contract state (`KycdaoNTNFT` struct), then you'll have to write a `migrate` function and call it manually after deployment.
 The `migrate` function needs the old version of the struct, so it can read the old state before creating the new one. The function should look something like this:
 ```rust
 #[private]

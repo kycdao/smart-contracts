@@ -208,8 +208,8 @@ impl KycdaoNTNFT {
     }
 
     /// Check if an account has any valid tokens
-    pub fn has_valid_token(&self, account_id: AccountId) -> bool {
-        match self.tokens.tokens_per_owner.as_ref().expect("enumeration extension in use").get(&account_id) {
+    pub fn has_valid_token(&self, address: AccountId) -> bool {
+        match self.tokens.tokens_per_owner.as_ref().expect("enumeration extension in use").get(&address) {
             Some(token_ids) => {
                 for token_id in token_ids.iter() {
                     let status = self.token_statuses.get(&token_id).unwrap_or_default();
