@@ -1,13 +1,17 @@
 // @ts-ignore
-import { ethers, upgrades } from 'hardhat'
+import { ethers } from 'hardhat'
 import { solidity } from 'ethereum-waffle'
 import { use, expect } from 'chai'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 import { KycdaoNTNFTAccreditation } from '../src/types/contracts/KycdaoNTNFTAccreditation'
 import { ProxyUUPS } from '../src/types/contracts/ProxyUUPS'
+import { PriceFeed } from '../src/types/contracts/PriceFeed'
+import { TestChainlinkPriceFeed } from '../src/types/contracts/test/TestChainlinkPriceFeed'
+import { TestBandPriceFeed } from '../src/types/contracts/test/TestBandPriceFeed'
 import { Wallet } from '@ethersproject/wallet'
 import { ContractFactory } from '@ethersproject/contracts'
+import { BigNumber } from 'ethers'
 
 use(solidity)
 
@@ -20,12 +24,17 @@ const adminRole = '0x00000000000000000000000000000000000000000000000000000000000
 
 const testKey = '0xdd631135f3a99e4d747d763ab5ead2f2340a69d2a90fab05e20104731365fde3'
 
+const initPriceFeedValChainlink: BigNumber = BigNumber.from(1 * 10 ** 8)
+const initPriceFeedValBand: BigNumber = BigNumber.from(1 * 10).pow(18)
+
+enum PriceFeedType { CHAINLINK, BAND }
+
 async function blockTime() {
   const block = await ethers.provider.getBlock('latest')
   return block.timestamp
 }
 
-describe.only('KycdaoNtnft Accreditation Membership', function () {
+describe.only('KycdaoNTNFTAccreditation Membership', function () {
   let memberNft: KycdaoNTNFTAccreditation
   let memberNftAsMinter: KycdaoNTNFTAccreditation
   let memberNftAsAnyone: KycdaoNTNFTAccreditation
@@ -38,9 +47,14 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
 
   let KycdaoNTNFTAccredAbstract: ContractFactory
   let ProxyAbstract: ContractFactory
+  let PriceFeedAbstract: ContractFactory
+  let TestChainlinkPriceFeedAbstract: ContractFactory
+  let TestBandPriceFeedAbstract: ContractFactory
+
   let initData: string
 
   let expiration: number
+  let expectedMintCost: BigNumber
 
   this.beforeAll(async function () {
     ;[deployer, minter, anyone] = await ethers.getSigners()
@@ -51,71 +65,119 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
 
     KycdaoNTNFTAccredAbstract = await ethers.getContractFactory('KycdaoNTNFTAccreditation')
     ProxyAbstract = await ethers.getContractFactory('ProxyUUPS')
-    initData = KycdaoNTNFTAccredAbstract.interface.encodeFunctionData('initialize', ['test', 'TEST', 'metadataURI', 'verificationURI'])
+    PriceFeedAbstract = await ethers.getContractFactory('PriceFeed')
+    TestChainlinkPriceFeedAbstract = await ethers.getContractFactory('TestChainlinkPriceFeed')
+    TestBandPriceFeedAbstract = await ethers.getContractFactory('TestBandPriceFeed')
   })
 
   beforeEach(async function () {
-    const KycdaoNTNFTDeployed = await KycdaoNTNFTAccredAbstract.deploy() as KycdaoNTNFTAccreditation
-    await KycdaoNTNFTDeployed.deployed()
+    const ChainlinkPriceFeedDeployed = await TestChainlinkPriceFeedAbstract.deploy(initPriceFeedValChainlink) as PriceFeed
+    await ChainlinkPriceFeedDeployed.deployed()
+
+    const PriceFeedDeployed = await PriceFeedAbstract.deploy(ChainlinkPriceFeedDeployed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
+    await PriceFeedDeployed.deployed()
+
+    const KycdaoNTNFTAccredDeployed = await KycdaoNTNFTAccredAbstract.deploy() as KycdaoNTNFTAccreditation
+    await KycdaoNTNFTAccredDeployed.deployed()
     //TODO: We should deploy the proxy via xdeploy to test this properly,
     //      but the Create2DeployerLocal.sol is failing at the moment
     const proxyDeployed = await ProxyAbstract.deploy() as ProxyUUPS
     await proxyDeployed.deployed()
-    await proxyDeployed.initProxy(KycdaoNTNFTDeployed.address, initData)
-    const KycdaoNTNFT = KycdaoNTNFTAccredAbstract.attach(proxyDeployed.address) as KycdaoNTNFTAccreditation
-    memberNft = await KycdaoNTNFT.connect(deployer)
-    memberNftAsMinter = await KycdaoNTNFT.connect(minter)
-    memberNftAsAnyone = await KycdaoNTNFT.connect(anyone)
+    initData = KycdaoNTNFTAccredAbstract.interface.encodeFunctionData('initialize', ['test', 'TEST', 'metadataURI', 'verificationURI', PriceFeedDeployed.address])
+    await proxyDeployed.initProxy(KycdaoNTNFTAccredDeployed.address, initData)
+    const KycdaoNTNFTAccred = KycdaoNTNFTAccredAbstract.attach(proxyDeployed.address) as KycdaoNTNFTAccreditation
+    memberNft = await KycdaoNTNFTAccred.connect(deployer)
+    memberNftAsMinter = await KycdaoNTNFTAccred.connect(minter)
+    memberNftAsAnyone = await KycdaoNTNFTAccred.connect(anyone)
 
     await memberNft.grantRole(minterRole, minter.address)
     await memberNft.grantRole(minterRole, author.address)
 
     const currBlockTime = await blockTime()
-    expiration = currBlockTime + 1000  
+    expiration = currBlockTime + 1000
+
+    expectedMintCost = await memberNft.getMintPriceNative()
   })
 
   describe('minting', function () {
     describe('mint  admin', function () {
       it('Authorize minter to mint a token ', async function () {
-        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
         expect(await memberNft.balanceOf(anyone.address)).to.equal(0)
       })
     })
-  
 
     describe('mint  with nonce', function () {
       it('Mint a token ', async function () {
-        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
-        await memberNftAsAnyone.mint(456)
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+        await memberNftAsAnyone.mint(456, {value: expectedMintCost})
         expect(await memberNft.balanceOf(anyone.address)).to.equal(1)
-        const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
-        expect(await memberNft.tokenURI(tokenId), "metadataURI/ABC123")
+        expect(await memberNft.tokenURI(1), "metadataURI/ABC123")
       })
 
       it('Updates total supply ', async function () {
-        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
-        await memberNftAsAnyone.mint(456)
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+        await memberNftAsAnyone.mint(456, {value: expectedMintCost})
         expect(await memberNft.totalSupply()).to.equal(1)
       })
 
       it('Allows enumeration ', async function () {
-        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
-        await memberNftAsAnyone.mint(456)
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+        await memberNftAsAnyone.mint(456, {value: expectedMintCost})
         expect(await memberNft.tokenOfOwnerByIndex(anyone.address, 0)).to.equal(1)
         expect(await memberNft.tokenByIndex(0)).to.equal(1)
       })
 
       it('Fails if mint used twice', async function () {
-        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
-        await memberNftAsAnyone.mint(456)
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+        await memberNftAsAnyone.mint(456, {value: expectedMintCost})
         await expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('Unauthorized code')
       })
     })
 
+    describe('mint with differing payments', function () {
+      it('Fails to mint with no payment', async function () {
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+        await expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('Insufficient payment for minting')      
+      })
+
+      it('Fails to mint with too little payment', async function () {
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+        const lowerPayment = expectedMintCost.sub(100)
+        await expect(memberNftAsAnyone.mint(456, {value: lowerPayment})).to.be.revertedWith('Insufficient payment for minting')      
+      })
+
+      it('Mints with too much payment', async function () {
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+        const higherPayment = expectedMintCost.add(100)
+        await memberNftAsAnyone.mint(456, {value: higherPayment})
+        expect(await memberNft.balanceOf(anyone.address)).to.equal(1)
+      })
+
+      it('Refunds any additional amount above expected payment', async function () {
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+        const higherPayment = expectedMintCost.add(100)
+        const initBalance = await anyone.getBalance()
+        const tx = await memberNftAsAnyone.mint(456, {value: higherPayment})
+        const res = await tx.wait()
+        const postBalance = await anyone.getBalance()
+        const gasCost = res.gasUsed.mul(res.effectiveGasPrice)
+
+        expect(await memberNft.balanceOf(anyone.address)).to.equal(1)
+        expect(postBalance).to.equal(initBalance.sub(expectedMintCost).sub(gasCost))
+      })
+
+      it('Mints when no payment is expected', async function () {
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, true)
+        await memberNftAsAnyone.mint(456)
+        expect(await memberNft.balanceOf(anyone.address)).to.equal(1)
+      })      
+    })
+
     describe('no transfers', function () {
       it('Does not allow tokens to be transferred', async function () {
-        await memberNftAsMinter.authorizeMinting(123, anyone.address, "ABC123", "uidasd", expiration)
-        await memberNftAsAnyone.mint(123)
+        await memberNftAsMinter.authorizeMinting(123, anyone.address, "ABC123", "uidasd", expiration, false)
+        await memberNftAsAnyone.mint(123, {value: expectedMintCost})
         await expect(memberNftAsAnyone.transferFrom(anyone.address, author.address, 1)).to.be.revertedWith('Not transferable!')
       })
     })
@@ -124,23 +186,23 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
   describe('status', function () {
     describe('checking status for existing token', function () {
       it('Has valid expiry', async function () {
-        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
-        await memberNftAsAnyone.mint(456)
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+        await memberNftAsAnyone.mint(456, {value: expectedMintCost})
         const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
         expect(await memberNft.tokenExpiry(tokenId)).to.equal(expiration)
       })
 
       it('Is not revoked', async function () {
-        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
-        await memberNftAsAnyone.mint(456)
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+        await memberNftAsAnyone.mint(456, {value: expectedMintCost})
         const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
         expect(await memberNft.tokenIsRevoked(tokenId)).to.equal(false)
       })
 
       it('Has valid NFT', async function () {
         expect(await memberNft.hasValidToken(anyone.address)).to.equal(false)
-        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
-        await memberNftAsAnyone.mint(456)
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+        await memberNftAsAnyone.mint(456, {value: expectedMintCost})
         const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
         expect(await memberNft.hasValidToken(anyone.address)).to.equal(true)
       })      
@@ -166,8 +228,8 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
   describe('updating status', function () {
     it('To new expiry, updates expiry', async function () {
       const currBlockTime = await blockTime()
-      await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
-      await memberNftAsAnyone.mint(456)
+      await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+      await memberNftAsAnyone.mint(456, {value: expectedMintCost})
       const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
       const newExpiration = currBlockTime + 2000
       await memberNft.updateExpiry(tokenId, newExpiration)
@@ -176,8 +238,8 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
 
     it('To expiry in the past, updates expiry and invalidates token', async function () {
       const currBlockTime = await blockTime()
-      await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
-      await memberNftAsAnyone.mint(456)
+      await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+      await memberNftAsAnyone.mint(456, {value: expectedMintCost})
       const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
       const newExpiration = currBlockTime - 1000
       await memberNft.updateExpiry(tokenId, newExpiration)
@@ -186,8 +248,8 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
     })
 
     it('By revoking, revokes token', async function () {
-      await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration)
-      await memberNftAsAnyone.mint(456)
+      await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+      await memberNftAsAnyone.mint(456, {value: expectedMintCost})
       const tokenId = await memberNft.tokenOfOwnerByIndex(anyone.address, 0)
       await memberNft.setRevokeToken(tokenId, true)
       expect(await memberNft.tokenIsRevoked(tokenId)).to.equal(true)
@@ -196,6 +258,117 @@ describe.only('KycdaoNtnft Accreditation Membership', function () {
       expect(await memberNft.tokenIsRevoked(tokenId)).to.equal(false)
       expect(await memberNft.hasValidToken(anyone.address)).to.equal(true)
     })     
+  })
+
+  describe('changing mint cost', function () {
+    it('fails when not called by owner', async function () {
+      const curMintCost = await memberNft.mintCost()
+      const newCost = curMintCost.add(2000)
+      await expect(memberNftAsAnyone.setMintCost(newCost)).to.be.revertedWith('!owner')
+    })
+
+    it('updates the mint cost', async function () {
+      const curMintCost = await memberNft.mintCost()
+      const newCost = curMintCost.add(2000)
+      await memberNft.setMintCost(newCost)
+      expect(await memberNft.mintCost()).to.equal(newCost)
+    })
+
+    it('updates the expected native mint cost', async function () {
+      const curNativeMintCost = await memberNft.getMintPriceNative()
+      const curMintCost = await memberNft.mintCost()
+      const newCost = curMintCost.add(2000)
+      await memberNft.setMintCost(newCost)
+      expect(await memberNft.mintCost()).to.equal(newCost)
+      expect(curNativeMintCost.lt(await memberNft.getMintPriceNative())).to.be.true
+    })
+    
+    it('fails minting using original amount after updating to a higher price', async function () {
+      const curNativeMintCost = await memberNft.getMintPriceNative()
+      const curMintCost = await memberNft.mintCost()
+      const newCost = curMintCost.add(2000)
+      await memberNft.setMintCost(newCost)
+      await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+      await expect(memberNftAsAnyone.mint(456, {value: curNativeMintCost})).to.be.revertedWith('Insufficient payment for minting')
+    })
+
+    it('mints using new amount after updating to a higher price', async function () {
+      const curMintCost = await memberNft.mintCost()
+      const newCost = curMintCost.add(2000)
+      await memberNft.setMintCost(newCost)
+      const newNativeMintCost = await memberNft.getMintPriceNative()      
+      await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+      await memberNftAsAnyone.mint(456, {value: newNativeMintCost})
+      expect(await memberNft.balanceOf(anyone.address)).to.equal(1)
+    })    
+  })
+
+  describe('setting pricefeed', function () {
+    it('fails when not called by owner', async function () {
+      const chainlinkPriceFeed = await TestChainlinkPriceFeedAbstract.deploy(initPriceFeedValChainlink) as TestChainlinkPriceFeed
+      await chainlinkPriceFeed.deployed()
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
+      await priceFeedDeployed.deployed()      
+      await expect(memberNftAsAnyone.setPriceFeed(priceFeedDeployed.address)).to.be.revertedWith('!owner')
+    })
+
+    it('sets the price feed to the given address', async function () {
+      const newPriceFeedVal = initPriceFeedValChainlink.mul(2)
+      const chainlinkPriceFeed = await TestChainlinkPriceFeedAbstract.deploy(newPriceFeedVal) as TestChainlinkPriceFeed
+      await chainlinkPriceFeed.deployed()
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
+      await priceFeedDeployed.deployed()
+      await memberNft.setPriceFeed(priceFeedDeployed.address)
+      const newNativeMintCost = await memberNft.getMintPriceNative()
+      expect(newNativeMintCost).to.equal(expectedMintCost.mul(2))
+    })
+
+    it('can use a BAND price feed', async function () {
+      const newPriceFeedVal = initPriceFeedValBand.mul(2)
+      const bandPriceFeed = await TestBandPriceFeedAbstract.deploy(newPriceFeedVal) as TestBandPriceFeed
+      await bandPriceFeed.deployed()
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(bandPriceFeed.address, PriceFeedType.BAND, 'CELO', 'USD') as PriceFeed
+      await priceFeedDeployed.deployed()
+      await memberNft.setPriceFeed(priceFeedDeployed.address)
+      const newNativeMintCost = await memberNft.getMintPriceNative()
+      expect(newNativeMintCost).to.equal(expectedMintCost.mul(2))
+    })
+    
+    it('we can change the price feed to CHAINLINK feed', async function () {
+      const newPriceFeedVal = initPriceFeedValChainlink.mul(2)
+      const chainlinkPriceFeed = await TestChainlinkPriceFeedAbstract.deploy(newPriceFeedVal) as TestChainlinkPriceFeed
+      await chainlinkPriceFeed.deployed()
+      const priceFeedDeployed = PriceFeedAbstract.attach(await memberNft.nativeUSDPriceFeed()) as PriceFeed
+      await priceFeedDeployed.setPriceFeedChainlink(chainlinkPriceFeed.address)
+      const newNativeMintCost = await memberNft.getMintPriceNative()
+      expect(newNativeMintCost).to.equal(expectedMintCost.mul(2))
+    })
+
+    it('we can change the price feed to BAND feed', async function () {
+      const newPriceFeedVal = initPriceFeedValBand.mul(2)
+      const bandPriceFeed = await TestBandPriceFeedAbstract.deploy(newPriceFeedVal) as TestBandPriceFeed
+      await bandPriceFeed.deployed()
+      const priceFeedDeployed = PriceFeedAbstract.attach(await memberNft.nativeUSDPriceFeed()) as PriceFeed
+      await priceFeedDeployed.setPriceFeedBand(bandPriceFeed.address, 'CELO', 'USD')
+      const newNativeMintCost = await memberNft.getMintPriceNative()
+      expect(newNativeMintCost).to.equal(expectedMintCost.mul(2))
+    })
+  })
+
+  describe('retrieving payments from contract', function () {
+    it('sends balance to an address given', async function () {
+      await memberNftAsMinter.authorizeMinting(456, anyone.address, "ABC123", "uid1234", expiration, false)
+      await memberNftAsAnyone.mint(456, {value: expectedMintCost})
+      const initialBal = await ethers.provider.getBalance(anyone.address)
+      await memberNft.sendBalanceTo(anyone.address)
+      const finalBal = await ethers.provider.getBalance(anyone.address)
+      expect(finalBal).to.equal(initialBal.add(expectedMintCost))
+    })
+
+    it('fails when not called by owner', async function () {
+      await expect(memberNftAsAnyone.sendBalanceTo(anyone.address)).to.be.revertedWith('!owner')
+    })
+    
   })
 
 })
