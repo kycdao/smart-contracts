@@ -125,6 +125,45 @@ describe.only('KycdaoNtnft Membership', function () {
     it('should have the correct implementation', async function () {
       expect(await proxyDeployed.getImplementation()).to.equal(KycdaoNTNFTDeployed.address)
     })
+
+    it('should require the owner to upgrade', async function () {
+      await expect(memberNftAsMinter.upgradeTo(zeroAddress)).to.be.revertedWith('!owner')
+    })
+
+    it('should prevent upgrades to addresses with no contract', async function () {
+      await expect(memberNft.upgradeTo(zeroAddress)).to.be.revertedWith('function call to a non-contract account')
+    })
+
+    it('should allow the owner to upgrade', async function () {
+      const newKYCDeploy = await KycdaoNTNFTAbstract.deploy() as KycdaoNTNFT
+      await newKYCDeploy.deployed()  
+      await expect(memberNft.upgradeTo(newKYCDeploy.address)).to.emit(proxyDeployed, 'Upgraded').withArgs(newKYCDeploy.address)
+      expect(await proxyDeployed.getImplementation()).to.equal(newKYCDeploy.address)      
+    })
+  })
+
+  //TODO: Add more dynamic interface checking here
+  //like: https://ethereum.stackexchange.com/questions/113329/is-there-a-way-to-get-an-interface-id-of-a-solidity-interface-using-ethersjs
+  describe('supports interface', function () {
+    it('should support ERC165', async function () {
+      expect(await memberNft.supportsInterface('0x01ffc9a7')).to.be.true
+    })
+
+    it('should support ERC721', async function () {
+      expect(await memberNft.supportsInterface('0x80ac58cd')).to.be.true
+    })
+
+    it('should support ERC721Metadata', async function () {
+      expect(await memberNft.supportsInterface('0x5b5e139f')).to.be.true
+    })
+
+    it('should support ERC721Enumerable', async function () {
+      expect(await memberNft.supportsInterface('0x780e9d63')).to.be.true
+    })
+
+    it('should fail for invalid interface', async function () {
+      expect(await memberNft.supportsInterface('0x12345678')).to.be.false
+    })
   })
 
   describe('authorize minting', function () {
