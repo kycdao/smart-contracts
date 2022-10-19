@@ -90,18 +90,6 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_, nativeUSDPriceFeedAddr);
     }
 
-    /// @dev This initialize is used to support the standard UUPS Proxy,
-    /// which calls this function as the first initialize 
-    function initializeStd(
-        string memory name_,
-        string memory symbol_,
-        string memory metadataBaseURI_,
-        string memory verificationDataBaseURI_,
-        address nativeUSDPriceFeedAddr
-    )  public initializer {
-        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_, nativeUSDPriceFeedAddr);
-    }
-
     /// @dev initialize sets the contract metadata and the roles
     /// @param name_ Token name
     /// @param symbol_ Token symbol
