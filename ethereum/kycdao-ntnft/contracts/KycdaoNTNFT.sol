@@ -181,7 +181,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
         if (sendGasOnAuthorization > 0) {
             (bool sent, ) = _dst.call{value: sendGasOnAuthorization}("");
-            require(sent, "Failed to send Ether");
+            require(sent, "Failed to send gas for minting");
         }
     }
 
