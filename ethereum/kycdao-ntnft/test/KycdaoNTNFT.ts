@@ -56,6 +56,9 @@ describe.only('KycdaoNtnft Membership', function () {
   let expiration: number
   let expectedMintCost: BigNumber
 
+  let proxyDeployed: ProxyUUPS
+  let KycdaoNTNFTDeployed: KycdaoNTNFT
+
   this.beforeAll(async function () {
     ;[deployer, minter, anyone] = await ethers.getSigners()
 
@@ -77,11 +80,11 @@ describe.only('KycdaoNtnft Membership', function () {
     const PriceFeedDeployed = await PriceFeedAbstract.deploy(ChainlinkPriceFeedDeployed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
     await PriceFeedDeployed.deployed()
 
-    const KycdaoNTNFTDeployed = await KycdaoNTNFTAbstract.deploy() as KycdaoNTNFT
+    KycdaoNTNFTDeployed = await KycdaoNTNFTAbstract.deploy() as KycdaoNTNFT
     await KycdaoNTNFTDeployed.deployed()
     //TODO: We should deploy the proxy via xdeploy to test this properly,
     //      but the Create2DeployerLocal.sol is failing at the moment
-    const proxyDeployed = await ProxyAbstract.deploy() as ProxyUUPS
+    proxyDeployed = await ProxyAbstract.deploy() as ProxyUUPS
     await proxyDeployed.deployed()
     initData = KycdaoNTNFTAbstract.interface.encodeFunctionData('initialize', ['test', 'TEST', 'metadataURI', 'verificationURI', PriceFeedDeployed.address])
     await proxyDeployed.initProxy(KycdaoNTNFTDeployed.address, initData)
@@ -97,6 +100,12 @@ describe.only('KycdaoNtnft Membership', function () {
     expiration = currBlockTime + 1000
 
     expectedMintCost = await memberNft.getMintPriceNative()
+  })
+
+  describe('check proxy', function () {
+    it('should have the correct implementation', async function () {
+      expect(await proxyDeployed.getImplementation()).to.equal(KycdaoNTNFTDeployed.address)
+    })
   })
 
   describe('minting', function () {
@@ -310,6 +319,12 @@ describe.only('KycdaoNtnft Membership', function () {
       const priceFeedDeployed = await PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
       await priceFeedDeployed.deployed()      
       await expect(memberNftAsAnyone.setPriceFeed(priceFeedDeployed.address)).to.be.revertedWith('!owner')
+    })
+
+    it('fails when invalid PriceFeedType is used', async function () {
+      const chainlinkPriceFeed = await TestChainlinkPriceFeedAbstract.deploy(initPriceFeedValChainlink) as TestChainlinkPriceFeed
+      await chainlinkPriceFeed.deployed()
+      expect(PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK + 10, '', '')).to.be.revertedWith('Invalid price feed type')
     })
 
     it('sets the price feed to the given address', async function () {
