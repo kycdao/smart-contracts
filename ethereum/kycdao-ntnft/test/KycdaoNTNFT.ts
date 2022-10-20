@@ -9,6 +9,7 @@ import { ProxyUUPS } from '../src/types/contracts/ProxyUUPS'
 import { PriceFeed } from '../src/types/contracts/PriceFeed'
 import { TestChainlinkPriceFeed } from '../src/types/contracts/test/TestChainlinkPriceFeed'
 import { TestBandPriceFeed } from '../src/types/contracts/test/TestBandPriceFeed'
+import { RevertTestWallet }  from '../src/types/contracts/test/TestWallets.sol'
 import { Wallet } from '@ethersproject/wallet'
 import { ContractFactory } from '@ethersproject/contracts'
 import { BigNumber } from 'ethers'
@@ -207,7 +208,7 @@ describe.only('KycdaoNtnft Membership', function () {
       })
     })
 
-    describe('mint  with nonce', function () {
+    describe('mint with nonce', function () {
       it('Mint a token ', async function () {
         await memberNftAsMinter.authorizeMinting(456, anyone.address, testMetaUID, testVerifUID, expiration, false)
         await memberNftAsAnyone.mint(456, {value: expectedMintCost})
@@ -233,6 +234,11 @@ describe.only('KycdaoNtnft Membership', function () {
         await memberNftAsAnyone.mint(456, {value: expectedMintCost})
         await expect(memberNftAsAnyone.mint(456)).to.be.revertedWith('Unauthorized code')
       })
+
+      it('Fails if mint call is not made by recipient', async function () {
+        await memberNftAsMinter.authorizeMinting(456, anyone.address, testMetaUID, testVerifUID, expiration, false)
+        await expect(memberNftAsMinter.mint(456)).to.be.revertedWith('Unauthorized code')
+      })      
     })
 
     describe('mint with differing payments', function () {
@@ -280,6 +286,71 @@ describe.only('KycdaoNtnft Membership', function () {
         await memberNftAsAnyone.mint(123, {value: expectedMintCost})
         await expect(memberNftAsAnyone.transferFrom(anyone.address, author.address, 1)).to.be.revertedWith('Not transferable!')
       })
+    })
+
+    // TODO: Could probably extend this section to a whole bunch of different contracts
+    describe('receiver is contract', function () {
+      it('Fails to mint to contract without onERC721Received', async function () {
+        const NoRespTestWalletAbstract = await ethers.getContractFactory('NoRespTestWallet')
+        const receiver = await NoRespTestWalletAbstract.deploy()
+        await memberNftAsMinter.authorizeMinting(123, receiver.address, testMetaUID, testVerifUID, expiration, false)
+        await expect(receiver.mint(memberNft.address, 123, {value: expectedMintCost})).to.be.revertedWith('ERC721: transfer to non ERC721Receiver implementer')
+      })
+
+      it('Fails if receiver is a contract which reverts onERC721Received', async function () {
+        const RevertTestWalletAbstract = await ethers.getContractFactory('RevertTestWallet')
+        const receiver = await RevertTestWalletAbstract.deploy()
+        await memberNftAsMinter.authorizeMinting(123, receiver.address, testMetaUID, testVerifUID, expiration, false)
+        await expect(receiver.mint(memberNft.address, 123, {value: expectedMintCost})).to.be.revertedWith('RevertTestWallet')
+      })
+
+      it('Fails if receiver is a contract which accepts onERC721Received but returns the wrong selector', async function () {
+        const InvalidRespTestWalletAbstract = await ethers.getContractFactory('InvalidRespTestWallet')
+        const receiver = await InvalidRespTestWalletAbstract.deploy()
+        await memberNftAsMinter.authorizeMinting(123, receiver.address, testMetaUID, testVerifUID, expiration, false)
+        await expect(receiver.mint(memberNft.address, 123, {value: expectedMintCost})).to.be.revertedWith('ERC721: transfer to non ERC721Receiver implementer')
+      })
+
+      it('Succeeds if receiver is a contract which accepts onERC721Received and emits an event on mint', async function () {
+        const EventTestWalletAbstract = await ethers.getContractFactory('EventTestWallet')
+        const receiver = await EventTestWalletAbstract.deploy()
+        await memberNftAsMinter.authorizeMinting(123, receiver.address, testMetaUID, testVerifUID, expiration, false)
+        await expect(receiver.mint(memberNft.address, 123, {value: expectedMintCost})).to.emit(receiver, 'Received')
+        expect(await memberNft.balanceOf(receiver.address)).to.equal(1)
+      })
+      
+      it('Fails if receiver is a contract which reverts on receiving a refund', async function () {
+        const RevertReceiveTestWalletAbstract = await ethers.getContractFactory('RevertReceiveTestWallet')
+        const receiver = await RevertReceiveTestWalletAbstract.deploy()
+        await memberNftAsMinter.authorizeMinting(123, receiver.address, testMetaUID, testVerifUID, expiration, false)
+        await expect(receiver.mint(memberNft.address, 123, {value: expectedMintCost.add(100)})).to.be.revertedWith('Refund failed')
+      })
+
+      it('Succeeds if receiver is a contract which accepts a refund and emits an event', async function () {
+        const EventReceiveTestWallettAbstract = await ethers.getContractFactory('EventReceiveTestWallet')
+        const receiver = await EventReceiveTestWallettAbstract.deploy()
+        await memberNftAsMinter.authorizeMinting(123, receiver.address, testMetaUID, testVerifUID, expiration, false)
+        await expect(receiver.mint(memberNft.address, 123, {value: expectedMintCost.add(100)})).to.emit(receiver, 'ReceivedRefund')
+        expect(await memberNft.balanceOf(receiver.address)).to.equal(1)
+        expect(await ethers.provider.getBalance(receiver.address)).to.equal(100)
+        expect(await ethers.provider.getBalance(memberNft.address)).to.equal(expectedMintCost)
+      })
+
+      it('Fails if receiver is a contract which attempts to reenter mint on receive', async function () {
+        const ReenterReceiveTestWalletAbstract = await ethers.getContractFactory('ReenterReceiveTestWallet')
+        const receiver = await ReenterReceiveTestWalletAbstract.deploy()
+        await memberNftAsMinter.authorizeMinting(123, receiver.address, testMetaUID, testVerifUID, expiration, false)
+        await expect(receiver.mint(memberNft.address, 123, {value: expectedMintCost.mul(10)})).to.be.revertedWith('Refund failed')
+        expect(await memberNft.balanceOf(receiver.address)).to.equal(0)
+      })
+
+      it('Fails if receiver is a contract which attempts to reenter mint on receiving refund', async function () {
+        const ReenterTestWalletAbstract = await ethers.getContractFactory('ReenterTestWallet')
+        const receiver = await ReenterTestWalletAbstract.deploy()
+        await memberNftAsMinter.authorizeMinting(123, receiver.address, testMetaUID, testVerifUID, expiration, true)
+        await expect(receiver.mint(memberNft.address, 123, {value: expectedMintCost})).to.be.revertedWith('Unauthorized code')
+        expect(await memberNft.balanceOf(receiver.address)).to.equal(0)
+      })      
     })
   })
 
