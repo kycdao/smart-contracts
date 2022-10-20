@@ -7,6 +7,8 @@ pragma solidity ^0.8.9;
 
 interface IKYCNFT {
     function mint(uint32 _auth_code) external payable;
+    function authorizeMinting(uint32 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path, 
+        uint _expiry, bool _skipPayment) external;    
 }
 
 contract KYCTestWallet {
@@ -17,6 +19,10 @@ contract KYCTestWallet {
         kyc = _kyc;
         auth_code = _auth_code;
         _kyc.mint{value: msg.value}(_auth_code);
+    }
+
+    function prepareAuthMint(uint32 _auth_code) external {
+        auth_code = _auth_code;
     }
 }
 
@@ -87,5 +93,12 @@ contract ReenterTestWallet is KYCTestWallet {
     function onERC721Received(address, address, uint256, bytes calldata) external returns (bytes4) {
         kyc.mint(auth_code);
         return this.onERC721Received.selector;
+    }    
+}
+
+// This wallet is a simple contract that attempts to reenter the contract from via authorizeMinting
+contract ReenterAuthorizeTestWallet is KYCTestWallet {
+    receive() external payable {
+        kyc.authorizeMinting(auth_code, address(this), "", "", 0, true);
     }    
 }

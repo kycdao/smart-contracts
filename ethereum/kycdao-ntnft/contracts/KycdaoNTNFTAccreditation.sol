@@ -181,7 +181,7 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
 
         if (sendGasOnAuthorization > 0) {
             (bool sent, ) = _dst.call{value: sendGasOnAuthorization}("");
-            require(sent, "Failed to send Ether");
+            require(sent, "Failed to send gas for minting");
         }
     }
 
@@ -382,8 +382,8 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
     GSN
     *****************/
     /// @notice Returns actual message sender when transaction is proxied via relay in GSN
-    function _msgSender() override(ContextUpgradeable, BaseRelayRecipient) internal virtual view returns (address sender) {
-        sender = BaseRelayRecipient._msgSender();
+    function _msgSender() override(ContextUpgradeable, BaseRelayRecipient) internal virtual view returns (address) {
+        return BaseRelayRecipient._msgSender();
     }
 
     /// @notice Returns actual message data when transaction is proxied via relay in GSN

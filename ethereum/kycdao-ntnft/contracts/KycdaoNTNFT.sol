@@ -387,7 +387,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     }
 
     /// @notice Returns actual message data when transaction is proxied via relay in GSN
-    function _msgData() override(ContextUpgradeable, BaseRelayRecipient) internal virtual view returns (bytes memory) {
+    function _msgData() override(ContextUpgradeable, BaseRelayRecipient) internal virtual view returns (bytes calldata) {
         return BaseRelayRecipient._msgData();
     }
 

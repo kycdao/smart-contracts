@@ -9,7 +9,6 @@ import { ProxyUUPS } from '../src/types/contracts/ProxyUUPS'
 import { PriceFeed } from '../src/types/contracts/PriceFeed'
 import { TestChainlinkPriceFeed } from '../src/types/contracts/test/TestChainlinkPriceFeed'
 import { TestBandPriceFeed } from '../src/types/contracts/test/TestBandPriceFeed'
-import { RevertTestWallet }  from '../src/types/contracts/test/TestWallets.sol'
 import { Wallet } from '@ethersproject/wallet'
 import { ContractFactory } from '@ethersproject/contracts'
 import { BigNumber } from 'ethers'
@@ -344,7 +343,7 @@ describe.only('KycdaoNtnft Membership', function () {
         expect(await ethers.provider.getBalance(memberNft.address)).to.equal(expectedMintCost)
       })
 
-      it('Fails if receiver is a contract which attempts to reenter mint on receive', async function () {
+      it('Fails if receiver is a contract which attempts to reenter mint on receiving refund', async function () {
         const ReenterReceiveTestWalletAbstract = await ethers.getContractFactory('ReenterReceiveTestWallet')
         const receiver = await ReenterReceiveTestWalletAbstract.deploy()
         await memberNftAsMinter.authorizeMinting(123, receiver.address, testMetaUID, testVerifUID, expiration, false)
@@ -352,13 +351,35 @@ describe.only('KycdaoNtnft Membership', function () {
         expect(await memberNft.balanceOf(receiver.address)).to.equal(0)
       })
 
-      it('Fails if receiver is a contract which attempts to reenter mint on receiving refund', async function () {
+      it('Fails if receiver is a contract which attempts to reenter mint on onERC721Received', async function () {
         const ReenterTestWalletAbstract = await ethers.getContractFactory('ReenterTestWallet')
         const receiver = await ReenterTestWalletAbstract.deploy()
         await memberNftAsMinter.authorizeMinting(123, receiver.address, testMetaUID, testVerifUID, expiration, true)
+        await expect(receiver.mint(memberNft.address, 123)).to.be.revertedWith('Unauthorized code')
+        expect(await memberNft.balanceOf(receiver.address)).to.equal(0)
+      })
+      
+      it('Fails if receiver is a contract which attempts to reenter on authorizeMinting', async function () {
+        const sendGasOnAuth = 100000
+        await memberNft.setSendGasOnAuthorization(sendGasOnAuth)
+        const ReenterAuthorizeTestWalletAbstract = await ethers.getContractFactory('ReenterAuthorizeTestWallet')
+        const receiver = await ReenterAuthorizeTestWalletAbstract.deploy()
+        await expect(memberNftAsMinter.authorizeMinting(123, receiver.address, testMetaUID, testVerifUID, expiration, false)).to.be.revertedWith('Failed to send gas')
         await expect(receiver.mint(memberNft.address, 123, {value: expectedMintCost})).to.be.revertedWith('Unauthorized code')
         expect(await memberNft.balanceOf(receiver.address)).to.equal(0)
-      })      
+      })
+
+      it('Succeeds if receiver is a contract and send gas on auth is enabled', async function () {
+        const sendGasOnAuth = 100000
+        await memberNft.setSendGasOnAuthorization(sendGasOnAuth)
+        await minter.sendTransaction({ to: memberNft.address, value: sendGasOnAuth })
+        const EventReceiveTestWallettAbstract = await ethers.getContractFactory('EventReceiveTestWallet')
+        const receiver = await EventReceiveTestWallettAbstract.deploy()
+        await expect(memberNftAsMinter.authorizeMinting(123, receiver.address, testMetaUID, testVerifUID, expiration, false)).to.emit(receiver, 'ReceivedRefund')
+        expect(await ethers.provider.getBalance(receiver.address)).to.equal(sendGasOnAuth)
+        await receiver.mint(memberNft.address, 123, {value: expectedMintCost})
+        expect(await memberNft.balanceOf(receiver.address)).to.equal(1)
+      })
     })
   })
 
