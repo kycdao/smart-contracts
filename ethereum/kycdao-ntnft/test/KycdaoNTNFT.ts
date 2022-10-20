@@ -311,6 +311,14 @@ describe.only('KycdaoNtnft Membership', function () {
         await expect(receiver.mint(memberNft.address, 123, {value: expectedMintCost})).to.be.revertedWith('ERC721: transfer to non ERC721Receiver implementer')
       })
 
+      it('Succeeds if receiver is a contract which accepts onERC721Received and does not require mint payment', async function () {
+        const EventTestWalletAbstract = await ethers.getContractFactory('EventTestWallet')
+        const receiver = await EventTestWalletAbstract.deploy()
+        await memberNftAsMinter.authorizeMinting(123, receiver.address, testMetaUID, testVerifUID, expiration, true)
+        await expect(receiver.mint(memberNft.address, 123)).to.emit(receiver, 'Received')
+        expect(await memberNft.balanceOf(receiver.address)).to.equal(1)
+      })
+
       it('Succeeds if receiver is a contract which accepts onERC721Received and emits an event on mint', async function () {
         const EventTestWalletAbstract = await ethers.getContractFactory('EventTestWallet')
         const receiver = await EventTestWalletAbstract.deploy()
@@ -596,6 +604,17 @@ describe.only('KycdaoNtnft Membership', function () {
       await priceFeedDeployed.setPriceFeedBand(bandPriceFeed.address, 'CELO', 'USD')
       const newNativeMintCost = await memberNft.getMintPriceNative()
       expect(newNativeMintCost).to.equal(expectedMintCost.mul(2))
+    })
+  })
+
+  describe('setting trusted forwarder', function () {
+    it('fails when not called by owner', async function () {
+      await expect(memberNftAsAnyone.setTrustedForwarder(anyone.address)).to.be.revertedWith('!owner')
+    })
+
+    it('sets the trusted forwarder to the given address', async function () {
+      await memberNft.setTrustedForwarder(anyone.address)
+      expect(await memberNft.trustedForwarder()).to.equal(anyone.address)
     })
   })
 
