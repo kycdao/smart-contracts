@@ -12,10 +12,17 @@ let { solidity } = require('ethereum-waffle')
 let { use, expect } = require('chai')
 const { EtherscanProvider } = require('@ethersproject/providers')
 const { assert } = require('console')
+const { BigNumber } = require('ethers')
 
 use(solidity)
 
-const initPriceFeedVal = 1 * 10 ** 8
+const initPriceFeedValChainlink = BigNumber.from(1 * 10 ** 8)
+// No enums in js
+const PriceFeedType =
+{ 
+    CHAINLINK: 0, 
+    BAND: 1 
+}
 const minterRole = ethers.utils.solidityKeccak256(['string'], ['MINTER_ROLE'])
 
 async function blockTime() {
@@ -32,6 +39,7 @@ describe.only('KycdaoNtnft Membership with GSN', function () {
   
     let KycdaoNTNFTAbstract
     let PriceFeedAbstract
+    let TestChainlinkPriceFeedAbstract
     let ProxyAbstract
   
     let gsnAcct
@@ -42,12 +50,16 @@ describe.only('KycdaoNtnft Membership with GSN', function () {
     this.beforeAll(async function () {
       ;[deployer, minter] = await ethers.getSigners()
       KycdaoNTNFTAbstract = await ethers.getContractFactory('KycdaoNTNFT')
-      PriceFeedAbstract = await ethers.getContractFactory('TestPriceFeed')
+      PriceFeedAbstract = await ethers.getContractFactory('PriceFeed')
+      TestChainlinkPriceFeedAbstract = await ethers.getContractFactory('TestChainlinkPriceFeed')
       ProxyAbstract = await ethers.getContractFactory('ProxyUUPS')
     })
 
     beforeEach(async function () {
-        const PriceFeedDeployed = await PriceFeedAbstract.deploy(initPriceFeedVal)
+        const ChainlinkPriceFeedDeployed = await TestChainlinkPriceFeedAbstract.deploy(initPriceFeedValChainlink)
+        await ChainlinkPriceFeedDeployed.deployed()
+    
+        const PriceFeedDeployed = await PriceFeedAbstract.deploy(ChainlinkPriceFeedDeployed.address, PriceFeedType.CHAINLINK, '', '')
         await PriceFeedDeployed.deployed()
     
         const KycdaoNTNFTDeployed = await KycdaoNTNFTAbstract.deploy()

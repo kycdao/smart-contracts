@@ -7,6 +7,7 @@
     "compile": "TS_NODE_TRANSPILE_ONLY=1 hardhat compile",
     "test": "npm run compile; hardhat test --network hardhat",
     "testLocal": "npm run compile; hardhat node & hardhat test --network localhost; pkill -SIGINT -f 'hardhat node'",
+    "testGsn": "npm run compile; hardhat node & hardhat test --network localhost --grep GSN; pkill -SIGINT -f 'hardhat node'",
     "local": "hardhat node & sleep 10; gsn start"
   },
   "repository": {
