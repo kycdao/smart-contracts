@@ -56,4 +56,5 @@ jobs:
         cache: 'npm'
         cache-dependency-path: ethereum/kycdao-ntnft/package-lock.json
     - run: npm ci
+    - run: npm run compile
     - run: node --max-old-space-size=4096 ./node_modules/.bin/hardhat coverage
