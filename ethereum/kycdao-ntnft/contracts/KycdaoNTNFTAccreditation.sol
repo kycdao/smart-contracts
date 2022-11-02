@@ -8,8 +8,9 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@opengsn/contracts/src/BaseRelayRecipient.sol";
 import "./interfaces/IKycdaoNTNFTStatus.sol";
+import "./interfaces/IPriceFeed.sol";
 
-/// @title KycdaoNTNFT used for accreditation
+/// @title KycdaoNTNFT used for accreditation of investors
 /// @dev Non-transferable NFT for KycDAO
 ///
 contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlUpgradeable, BaseRelayRecipient, UUPSUpgradeable, IKycdaoNTNFTStatus {
@@ -51,10 +52,23 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
 
     /*****************
     END Version 0.2 VARIABLE DECLARATION
+    *****************/
+
+    uint public constant WEI_TO_NATIVE_DECIMALS = 18;
+
+    /// @notice The cost required for minting, expressed in USD
+    /// but with MINT_COST_DECIAMLS zeroes to allow for smaller values
+    uint public mintCost;
+    uint public constant MINT_COST_DECIMALS = 8;
+
+    IPriceFeed public nativeUSDPriceFeed;
+    mapping(bytes32 => bool) private authorizedSkipPayments; /* Whether to skip mint payments */    
+
+    /*****************
+    END Version 0.3 VARIABLE DECLARATION
 
     NOTICE: To ensure upgradeability, all NEW variables must be declared below.
     To keep track, ensure to add a Version tracker to the end of the new variables declared
-
     *****************/
 
     /// @dev This implementation contract shouldn't be initialized directly
@@ -70,9 +84,10 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         string memory name_,
         string memory symbol_,
         string memory metadataBaseURI_,
-        string memory verificationDataBaseURI_
+        string memory verificationDataBaseURI_,
+        address nativeUSDPriceFeedAddr
     )  public onlyInitializing {
-        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_);
+        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_, nativeUSDPriceFeedAddr);
     }
 
     /// @dev This initialize is used to support the standard UUPS Proxy,
@@ -81,9 +96,10 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         string memory name_,
         string memory symbol_,
         string memory metadataBaseURI_,
-        string memory verificationDataBaseURI_
+        string memory verificationDataBaseURI_,
+        address nativeUSDPriceFeedAddr
     )  public initializer {
-        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_);
+        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_, nativeUSDPriceFeedAddr);
     }
 
     /// @dev initialize sets the contract metadata and the roles
@@ -95,7 +111,8 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         string memory name_,
         string memory symbol_,
         string memory metadataBaseURI_,
-        string memory verificationDataBaseURI_
+        string memory verificationDataBaseURI_,
+        address nativeUSDPriceFeedAddr
     )  internal onlyInitializing {
         __ERC721_init(name_, symbol_);
         _setupRole(MINTER_ROLE, _msgSender());
@@ -105,6 +122,8 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         _setVerificationBaseURI(verificationDataBaseURI_);
 
         sendGasOnAuthorization = 0;
+        mintCost = 5 * 10 ** MINT_COST_DECIMALS;
+        nativeUSDPriceFeed = IPriceFeed(nativeUSDPriceFeedAddr);
     }
 
     /*****************
@@ -121,10 +140,22 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         string memory _verification_path = authorizedVerificationPaths[_digest];
         require(bytes(_verification_path).length != 0, "Unauthorized code");
         Status memory _status = authorizedStatuses[_digest];
+        bool _skipPayment = authorizedSkipPayments[_digest];
 
+        // check for payment or whether it should be skipped
+        uint cost = 0; 
+        if (!_skipPayment) {
+            cost = getMintPriceNative();
+            // We can't support native payments in GSN, so we revert to prevent people trying
+            require(msg.sender == _msgSender(), "Native payments via GSN not supported");
+            require(msg.value >= cost, "Insufficient payment for minting");
+        }
+
+        // checks passed, continue with minting below
         delete authorizedMetadataCIDs[_digest];
         delete authorizedVerificationPaths[_digest];
         delete authorizedStatuses[_digest];
+        delete authorizedSkipPayments[_digest];
 
         // Store token metadata CID and verification path
         // Actual tokenId will be current + 1
@@ -134,11 +165,21 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         tokenStatuses[_id] = _status;
 
         // Mint token
-        _mintInternal(_dst);        
+        _mintInternal(_dst);
+
+        // Refund any excess payment
+        if (!_skipPayment) {
+            uint refund = msg.value - cost;
+            if (refund > 0) {
+                (bool success, ) = _dst.call{value: refund}("");
+                require(success, "Refund failed");
+            }
+        }
     }
 
     /// @dev Authorize the minting of a new token
-    function authorizeMinting(uint32 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path, uint _expiry) external {
+    function authorizeMinting(uint32 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path, 
+        uint _expiry, bool _skipPayment) external {
         require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
         bytes32 _digest = _getDigest(_auth_code, _dst);
 
@@ -148,6 +189,7 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         authorizedVerificationPaths[_digest] = _verification_path;
         //TODO: Should we check that we are given an expiry in the future?
         authorizedStatuses[_digest] = Status (false, _expiry);
+        authorizedSkipPayments[_digest] = _skipPayment;
 
         if (sendGasOnAuthorization > 0) {
             (bool sent, ) = _dst.call{value: sendGasOnAuthorization}("");
@@ -161,7 +203,7 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
 
     /// @dev Current version of this smart contract
     function version() public pure returns (string memory) {
-        return "0.2.0";
+        return "0.3.1";
     }
 
     function tokenURI(uint256 tokenId)
@@ -247,6 +289,19 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         return false;
     }
 
+    /**
+     * @notice Returns the amount in NATIVE (wei) which is expected
+     * when minting
+     */
+    function getMintPriceNative() public view returns (uint) {
+        (
+            uint price,
+            uint8 decimals
+        ) = nativeUSDPriceFeed.lastPrice();
+        uint decimalConvert = 10 ** WEI_TO_NATIVE_DECIMALS / 10 ** decimals;
+        return (price * mintCost * decimalConvert) / 10 ** MINT_COST_DECIMALS;
+    }
+
     ///@dev Support interfaces for Access Control and ERC721
     function supportsInterface(bytes4 interfaceId)
         public
@@ -267,6 +322,12 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
 
     ///@dev fallback function to accept any payment
     receive() external payable {
+    }
+
+    ///@dev for retrieving all payments sent to contract
+    function sendBalanceTo(address payable recipient_) public {
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+        recipient_.transfer(address(this).balance);
     }
 
     /*****************
@@ -291,6 +352,20 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
     function setSendGasOnAuthorization(uint value_) external {
         require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
         sendGasOnAuthorization = value_;
+    }
+
+    /// @notice Set the mintCost in USD
+    /// @param value_ uint new mintCost in USD
+    function setMintCost(uint value_) external {
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+        mintCost = value_;
+    }
+
+    /// @notice Set the price feed used for native - USD conversions
+    /// @param address_ address the address of the price feed
+    function setPriceFeed(address address_) external {
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+        nativeUSDPriceFeed = IPriceFeed(address_);
     }
 
     /*****************
