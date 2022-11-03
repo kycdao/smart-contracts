@@ -35,13 +35,8 @@ jobs:
        curl -Os https://uploader.codecov.io/latest/linux/codecov
        find . -iregex "codecov.*"
        chmod +x codecov 
-       ./codecov -t ${CODECOV_TOKEN}
-  securitytoolbox:
-    name: eth security toolbox
-    defaults:
-      run:
-        working-directory: ethereum/kycdao-ntnft
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - uses: crytic/slither-action@v0.2.0
+       ./codecov -t ${CODECOV_TOKEN}  
+    - name: CSlither code analysis
+      uses: crytic/slither-action@v0.2.0
+      with:
+        fail-on: high
