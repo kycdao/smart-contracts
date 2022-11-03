@@ -34,27 +34,7 @@ jobs:
     - run: npm run compile
     - run: npm test
     - run: npm run testGsn
-
-  test-coverage:
-    defaults:
-      run:
-        working-directory: ethereum/kycdao-ntnft
-
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [16.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
-
-    steps:
-    - uses: actions/checkout@v3
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-        cache-dependency-path: ethereum/kycdao-ntnft/package-lock.json
-    - run: npm ci
-    - run: npm run compile
     - run: node --max-old-space-size=4096 ./node_modules/.bin/hardhat coverage
+    - run: curl -Os https://uploader.codecov.io/latest/linux/codecov && chmod +x codecov && ./codecov
+      with:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
