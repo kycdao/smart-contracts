@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: [ "main" ]
 jobs:
-  build:
+  build and test:
     defaults:
       run:
         working-directory: ethereum/kycdao-ntnft
@@ -25,7 +25,13 @@ jobs:
     - run: npm run compile
     - run: npm test
 #    - run: npm run testGsn
-    - run: node --max-old-space-size=4096 ./node_modules/.bin/hardhat coverage
-    - run: curl -Os https://uploader.codecov.io/latest/linux/codecov && chmod +x codecov && ./codecov
+    - name: Generate solidity coverage reports
+      run: node --max-old-space-size=4096 ./node_modules/.bin/hardhat coverage
+    - name: Upload reports to codecov
       env:
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        CODECOV_TOKEN: ${{secrets.CODECOV_TOKEN}}
+      run: | 
+       curl -Os https://uploader.codecov.io/latest/linux/codecov
+       find . -iregex "codecov.*"
+       chmod +x codecov 
+       ./codecov -t ${CODECOV_TOKEN}
