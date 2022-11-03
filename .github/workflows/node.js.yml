@@ -6,7 +6,7 @@ on:
     branches: [ "main" ]
 jobs:
   buildandtest:
-    run-name: build and test
+    name: build and test
     defaults:
       run:
         working-directory: ethereum/kycdao-ntnft
