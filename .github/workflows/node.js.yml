@@ -24,7 +24,7 @@ jobs:
     - run: npm ci
     - run: npm run compile
     - run: npm test
-    - run: npm run testGsn
+#    - run: npm run testGsn
     - run: node --max-old-space-size=4096 ./node_modules/.bin/hardhat coverage
     - run: curl -Os https://uploader.codecov.io/latest/linux/codecov && chmod +x codecov && ./codecov
       env:
