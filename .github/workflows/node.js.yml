@@ -5,7 +5,8 @@ on:
   pull_request:
     branches: [ "main" ]
 jobs:
-  build and test:
+  buildandtest:
+    run-name: build and test
     defaults:
       run:
         working-directory: ethereum/kycdao-ntnft
