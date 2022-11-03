@@ -1,4 +1,4 @@
-name: Node.js CI
+name: Ethereum
 on:
   push:
     branches: [ "main" ]
@@ -36,3 +36,10 @@ jobs:
        find . -iregex "codecov.*"
        chmod +x codecov 
        ./codecov -t ${CODECOV_TOKEN}
+  securitytoolbox:
+    name: eth security toolbox
+    defaults:
+      run:
+        working-directory: ethereum/kycdao-ntnft
+    runs-on: ubuntu-latest
+    container: trailofbits/eth-security-toolbox
