@@ -36,7 +36,13 @@ jobs:
        find . -iregex "codecov.*"
        chmod +x codecov 
        ./codecov -t ${CODECOV_TOKEN}  
-    - name: CSlither code analysis
-      uses: crytic/slither-action@v0.2.0
-      with:
-        fail-on: high
+     - name: Run Slither
+       uses: crytic/slither-action@v0.2.0
+       id: slither
+       with:
+         sarif: results.sarif
+         fail-on: high
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: ${{ steps.slither.outputs.sarif }}
