@@ -36,6 +36,14 @@ jobs:
        find . -iregex "codecov.*"
        chmod +x codecov 
        ./codecov -t ${CODECOV_TOKEN}  
+  slither:
+    name: slither code analyzer
+    defaults:
+      run:
+        working-directory: ethereum/kycdao-ntnft
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
     - name: Run Slither
       uses: crytic/slither-action@v0.2.0
       id: slither
