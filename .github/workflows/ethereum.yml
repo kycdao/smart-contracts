@@ -48,7 +48,7 @@ jobs:
       uses: crytic/slither-action@v0.2.0
       id: slither
       with:
-        node-version: 16
+        node-version: 18
         target: ethereum/kycdao-ntnft
         sarif: results.sarif
         fail-on: high
