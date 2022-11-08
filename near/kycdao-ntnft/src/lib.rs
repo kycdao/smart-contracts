@@ -166,7 +166,7 @@ impl KycdaoNTNFT {
     // TODO this has a storage cost!
     // TODO add verification path?
     /// @dev Authorize the minting of a new token
-    pub fn authorize_minting(&mut self, auth_code: MintAuthorizationCode, dst: AccountId, metadata: TokenMetadata, status: Option<Status>) {
+    pub fn authorize_minting(&mut self, auth_code: MintAuthorizationCode, dst: AccountId, metadata: TokenMetadata, expiry: Option<u64>) {
         self.assert_mint_authorizer();
         let digest = KycdaoNTNFT::get_digest(auth_code, &dst);
 
@@ -175,7 +175,10 @@ impl KycdaoNTNFT {
         let authorized_opt = self.authorized_token_metadata.get(&digest);
         assert!(authorized_opt.is_none(), "Code already authorized");
 
-        let new_status = status.unwrap_or_default();
+        let new_status = Status {
+            is_revoked: false,
+            expiry,
+        };
 
         self.authorized_token_metadata.insert(&digest, &metadata);
         self.authorized_statuses.insert(&digest, &new_status);
@@ -229,12 +232,14 @@ impl KycdaoNTNFT {
     Admin
     *****************/
     pub fn set_revoke_token(&mut self, token_id: TokenId, is_revoked: bool) {
+        self.assert_mint_authorizer();
         let mut status = self.token_statuses.get(&token_id).unwrap_or_default();
         status.is_revoked = is_revoked;
         self.token_statuses.insert(&token_id, &status);
     }
 
     pub fn update_expiry(&mut self, token_id: TokenId, expiry: Option<u64>) {
+        self.assert_mint_authorizer();
         let mut status = self.token_statuses.get(&token_id).unwrap_or_default();
         status.expiry = expiry;
         self.token_statuses.insert(&token_id, &status);
@@ -262,7 +267,7 @@ impl KycdaoNTNFT {
     }
 
     fn assert_mint_authorizer(&self) {
-        assert_eq!(env::predecessor_account_id(), self.get_mint_authorizer());
+        assert_eq!(env::predecessor_account_id(), self.get_mint_authorizer(), "Predecessor must be Mint Authorizer");
     }
 
     pub fn get_mint_authorizer(&self) -> AccountId {
@@ -472,6 +477,68 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Predecessor must be Mint Authorizer")]
+    fn test_unauthorized_expiry_change() {
+        let mut context = get_context(accounts(3));
+        testing_env!(context.build());
+        let mut contract = KycdaoNTNFT::new_default_meta("base3".to_string());
+
+        // use default status fallback
+        contract.authorize_minting(489, accounts(3), sample_token_metadata("somehash".to_string()), None);
+
+        testing_env!(context
+            .block_timestamp(1664226405)
+            .storage_usage(env::storage_usage())
+            .attached_deposit(MINT_STORAGE_COST + MINT_COST)
+            .signer_account_id(accounts(3))
+            .predecessor_account_id(accounts(3))
+            .build());
+
+        let token = contract.mint(489);
+
+        testing_env!(context
+            .block_timestamp(1664226405)
+            .storage_usage(env::storage_usage())
+            .attached_deposit(MINT_STORAGE_COST + MINT_COST)
+            .signer_account_id(accounts(4))
+            .predecessor_account_id(accounts(4))
+            .build());
+
+        contract.update_expiry(token.token_id.clone(), Some(1000));
+    }
+
+    #[test]
+    #[should_panic(expected = "Predecessor must be Mint Authorizer")]
+    fn test_unauthorized_revoke() {
+        let mut context = get_context(accounts(3));
+        testing_env!(context.build());
+        let mut contract = KycdaoNTNFT::new_default_meta("base3".to_string());
+
+        // use default status fallback
+        contract.authorize_minting(489, accounts(3), sample_token_metadata("somehash".to_string()), None);
+
+        testing_env!(context
+            .block_timestamp(1664226405)
+            .storage_usage(env::storage_usage())
+            .attached_deposit(MINT_STORAGE_COST + MINT_COST)
+            .signer_account_id(accounts(3))
+            .predecessor_account_id(accounts(3))
+            .build());
+
+        let token = contract.mint(489);
+
+        testing_env!(context
+            .block_timestamp(1664226405)
+            .storage_usage(env::storage_usage())
+            .attached_deposit(MINT_STORAGE_COST + MINT_COST)
+            .signer_account_id(accounts(4))
+            .predecessor_account_id(accounts(4))
+            .build());
+
+        contract.set_revoke_token(token.token_id.clone(), true);
+    }
+
+    #[test]
     #[ignore]
     fn test_status_setting_on_authorization() {
         let mut context = get_context(accounts(4));
@@ -479,7 +546,7 @@ mod tests {
         let mut contract = KycdaoNTNFT::new_default_meta("base3".to_string());
 
         // use default status fallback
-        contract.authorize_minting(6547, accounts(4), sample_token_metadata("somehash".to_string()), Some(Status { is_revoked: true, expiry: Some(9000000000) }));
+        contract.authorize_minting(6547, accounts(4), sample_token_metadata("somehash".to_string()), Some(9000000000));
 
         testing_env!(context
             .block_timestamp(1664226405)
