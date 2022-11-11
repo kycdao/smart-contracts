@@ -1,3 +1,4 @@
+[![codecov](https://codecov.io/gh/kycdao/smart-contracts/branch/main/graph/badge.svg?token=U9NMQ7VJ9S)](https://codecov.io/gh/kycdao/smart-contracts)
 # KYCDAO Non-transferable NFT - Solidity
 
 For details on making compatible changes to the contracts please see [Upgrades.md](./Upgrades.md)

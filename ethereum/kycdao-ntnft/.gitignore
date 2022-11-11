@@ -11,3 +11,4 @@ coverage.json
 .env
 build/*
 .openzeppelin/*
+*.sarif
