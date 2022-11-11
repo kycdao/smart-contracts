@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 NOTE: This CHANGELOG tracks changes to both contracts covered by kycDAO: **kycDAONTNFT** and **kycDAONTNFTAccreditation**
 
 ## [Unreleased]
+### Removed
+- Removed 'initializeStd' function from both contracts
 
 ## kycDAONTNFTAccreditation [0.3.1] - 2022-10-17
 ### Added

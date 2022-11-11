@@ -90,18 +90,6 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
         _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_, nativeUSDPriceFeedAddr);
     }
 
-    /// @dev This initialize is used to support the standard UUPS Proxy,
-    /// which calls this function as the first initialize 
-    function initializeStd(
-        string memory name_,
-        string memory symbol_,
-        string memory metadataBaseURI_,
-        string memory verificationDataBaseURI_,
-        address nativeUSDPriceFeedAddr
-    )  public initializer {
-        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_, nativeUSDPriceFeedAddr);
-    }
-
     /// @dev initialize sets the contract metadata and the roles
     /// @param name_ Token name
     /// @param symbol_ Token symbol
@@ -193,7 +181,7 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
 
         if (sendGasOnAuthorization > 0) {
             (bool sent, ) = _dst.call{value: sendGasOnAuthorization}("");
-            require(sent, "Failed to send Ether");
+            require(sent, "Failed to send gas for minting");
         }
     }
 
@@ -394,8 +382,8 @@ contract KycdaoNTNFTAccreditation is ERC721EnumerableUpgradeable, AccessControlU
     GSN
     *****************/
     /// @notice Returns actual message sender when transaction is proxied via relay in GSN
-    function _msgSender() override(ContextUpgradeable, BaseRelayRecipient) internal virtual view returns (address sender) {
-        sender = BaseRelayRecipient._msgSender();
+    function _msgSender() override(ContextUpgradeable, BaseRelayRecipient) internal virtual view returns (address) {
+        return BaseRelayRecipient._msgSender();
     }
 
     /// @notice Returns actual message data when transaction is proxied via relay in GSN

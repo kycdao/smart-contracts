@@ -21,9 +21,7 @@ contract PriceFeed is Ownable, IPriceFeed {
     string public bandQuote;
 
     constructor(address _priceFeedAddress, PriceFeedType _priceFeedType, string memory _bandBase, string memory _bandQuote) {
-        if (_priceFeedType != PriceFeedType.CHAINLINK && _priceFeedType != PriceFeedType.BAND) {
-            revert("Invalid price feed type");
-        }
+        require(_priceFeedType == PriceFeedType.CHAINLINK || _priceFeedType == PriceFeedType.BAND, "Invalid price feed type");
         priceFeedType = _priceFeedType;
         priceFeedAddress = _priceFeedAddress;
         bandBase = _bandBase;
