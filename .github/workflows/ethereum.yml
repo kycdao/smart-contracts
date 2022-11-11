@@ -28,7 +28,9 @@ jobs:
       run: npm run compile
     - name: Run tests
       run: npm test
-#    - run: npm run testGsn
+# These GSN tests are failing on the CI, commenting till fixed    
+    # - name: Run GSN tests
+    #   run: npm run testGsn    
     - name: Generate solidity coverage reports
       run: node --max-old-space-size=4096 ./node_modules/.bin/hardhat coverage
     - name: Upload reports to codecov
