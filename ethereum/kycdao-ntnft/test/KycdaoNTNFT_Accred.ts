@@ -14,7 +14,7 @@ import { BigNumber } from 'ethers'
 
 use(solidity)
 
-const expectedVersion = '0.3.1'
+const expectedVersion = '0.3.2'
 
 const zeroAddress = '0x0000000000000000000000000000000000000000'
 
