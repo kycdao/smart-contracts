@@ -7,13 +7,13 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@opengsn/contracts/src/BaseRelayRecipient.sol";
-import "./interfaces/IKycdaoNTNFTStatus.sol";
+import "./interfaces/IKycdaoNTNFT.sol";
 import "./interfaces/IPriceFeed.sol";
 
 /// @title KycdaoNTNFT
 /// @dev Non-transferable NFT for KycDAO
 ///
-contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, BaseRelayRecipient, UUPSUpgradeable, IKycdaoNTNFTStatus {
+contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, BaseRelayRecipient, UUPSUpgradeable, IKycdaoNTNFT {
     using ECDSA for bytes32; /*ECDSA for signature recovery for license mints*/
     using Strings for uint256;
     using Counters for Counters.Counter;
@@ -28,10 +28,12 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
     // Temporary storage for token data after authorization, but before minting (indexed by digest)
     mapping(bytes32 => string) private authorizedMetadataCIDs; /* Track if token minting is authorized, temporary storage for metadata CIDs */
+    //TODO: Verification paths are unused
     mapping(bytes32 => string) private authorizedVerificationPaths; /* Temporary storage for verification paths */
 
     // Final storage for token data after minting (indexed by token ID)
     mapping(uint256 => string) private tokenMetadataCIDs; /* Metadata CIDs per token */
+    //TODO: Verification paths are unused
     mapping(uint256 => string) private tokenVerificationPaths; /* Verification paths per token */
 
     uint public sendGasOnAuthorization;
@@ -44,8 +46,9 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     *****************/
 
     struct Status {
-        bool isRevoked;
+        bool verified;
         uint expiry;
+        string verificationTier;
     }
     mapping(bytes32 => Status) private authorizedStatuses;
     mapping(uint256 => Status) private tokenStatuses;
@@ -56,16 +59,22 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
     uint public constant WEI_TO_NATIVE_DECIMALS = 18;
 
-    /// @notice The cost required for minting, expressed in USD
-    /// but with MINT_COST_DECIAMLS zeroes to allow for smaller values
-    uint public mintCost;
-    uint public constant MINT_COST_DECIMALS = 8;
+    /// @notice The cost required for per year of subscription, expressed in USD
+    /// but with SUBSCRIPTION_COST_DECIMALS zeroes to allow for smaller values
+    uint public subscriptionCostPerYear;
+    uint public constant SUBSCRIPTION_COST_DECIMALS = 8;
 
     IPriceFeed public nativeUSDPriceFeed;
-    mapping(bytes32 => bool) private authorizedSkipPayments; /* Whether to skip mint payments */    
+    mapping(bytes32 => uint32) private authorizedSecondsToPay; /* How many seconds need to be paid for on mint */    
 
     /*****************
     END Version 0.3 VARIABLE DECLARATION
+    *****************/
+
+    uint public constant SECS_IN_YEAR = 365 * 24 * 60 * 60;
+
+    /*****************
+    END Version 0.4 VARIABLE DECLARATION
 
     NOTICE: To ensure upgradeability, all NEW variables must be declared below.
     To keep track, ensure to add a Version tracker to the end of the new variables declared
@@ -110,30 +119,47 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         _setVerificationBaseURI(verificationDataBaseURI_);
 
         sendGasOnAuthorization = 0;
-        mintCost = 5 * 10 ** MINT_COST_DECIMALS;
+        subscriptionCostPerYear = 5 * 10 ** SUBSCRIPTION_COST_DECIMALS;
         nativeUSDPriceFeed = IPriceFeed(nativeUSDPriceFeedAddr);
     }
 
     /*****************
     Authorized Minting
     *****************/
+
+    function mintWithSignature(
+        uint32 /*_auth_code*/, 
+        string memory /*_metadata_cid*/, 
+        uint32 /*_expiry*/,
+        uint32 /*_seconds_to_pay*/, 
+        string calldata /*_verification_tier*/, 
+        bytes calldata /*_signature*/) 
+        external 
+        payable 
+        override
+    {
+        revert("Not yet implemented");        
+    }
+
     /// @dev Mint the token by using an authorization code from an authorized account
-    function mint(uint32 _auth_code) external payable {
+    function mintWithCode(uint32 _auth_code) 
+        external 
+        payable
+        override 
+    {
         address _dst = _msgSender();
         bytes32 _digest = _getDigest(_auth_code, _dst);
 
         // get and remove authorized metadata CID and verification path
         string memory _metadata_cid = authorizedMetadataCIDs[_digest];
         require(bytes(_metadata_cid).length != 0, "Unauthorized code");
-        string memory _verification_path = authorizedVerificationPaths[_digest];
-        require(bytes(_verification_path).length != 0, "Unauthorized code");
+
         Status memory _status = authorizedStatuses[_digest];
-        bool _skipPayment = authorizedSkipPayments[_digest];
+        uint32 _secondsToPay = authorizedSecondsToPay[_digest];
 
         // check for payment or whether it should be skipped
-        uint cost = 0; 
-        if (!_skipPayment) {
-            cost = getMintPriceNative();
+        uint cost = getRequiredMintCostForSeconds(_secondsToPay);
+        if (cost > 0) {
             // We can't support native payments in GSN, so we revert to prevent people trying
             require(msg.sender == _msgSender(), "Native payments via GSN not supported");
             require(msg.value >= cost, "Insufficient payment for minting");
@@ -141,22 +167,20 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
         // checks passed, continue with minting below
         delete authorizedMetadataCIDs[_digest];
-        delete authorizedVerificationPaths[_digest];
         delete authorizedStatuses[_digest];
-        delete authorizedSkipPayments[_digest];
+        delete authorizedSecondsToPay[_digest];
 
         // Store token metadata CID and verification path
         // Actual tokenId will be current + 1
         uint256 _id = _tokenIds.current() + 1;
         tokenMetadataCIDs[_id] = _metadata_cid;
-        tokenVerificationPaths[_id] = _verification_path;
         tokenStatuses[_id] = _status;
 
         // Mint token
         _mintInternal(_dst);
 
         // Refund any excess payment
-        if (!_skipPayment) {
+        if (cost > 0) {
             uint refund = msg.value - cost;
             if (refund > 0) {
                 (bool success, ) = _dst.call{value: refund}("");
@@ -165,25 +189,87 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         }
     }
 
-    /// @dev Authorize the minting of a new token
-    function authorizeMinting(uint32 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path, 
-        uint _expiry, bool _skipPayment) external {
-        require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
+    //TODO: Old implementation
+    /// @dev Mint the token by using an authorization code from an authorized account
+    // function mint(uint32 _auth_code) external payable {
+    //     address _dst = _msgSender();
+    //     bytes32 _digest = _getDigest(_auth_code, _dst);
+
+    //     // get and remove authorized metadata CID and verification path
+    //     string memory _metadata_cid = authorizedMetadataCIDs[_digest];
+    //     require(bytes(_metadata_cid).length != 0, "Unauthorized code");
+    //     string memory _verification_path = authorizedVerificationPaths[_digest];
+    //     require(bytes(_verification_path).length != 0, "Unauthorized code");
+    //     Status memory _status = authorizedStatuses[_digest];
+    //     bool _skipPayment = authorizedSkipPayments[_digest];
+
+    //     // check for payment or whether it should be skipped
+    //     uint cost = 0; 
+    //     if (!_skipPayment) {
+    //         cost = getMintPriceNative();
+    //         // We can't support native payments in GSN, so we revert to prevent people trying
+    //         require(msg.sender == _msgSender(), "Native payments via GSN not supported");
+    //         require(msg.value >= cost, "Insufficient payment for minting");
+    //     }
+
+    //     // checks passed, continue with minting below
+    //     delete authorizedMetadataCIDs[_digest];
+    //     delete authorizedVerificationPaths[_digest];
+    //     delete authorizedStatuses[_digest];
+    //     delete authorizedSkipPayments[_digest];
+
+    //     // Store token metadata CID and verification path
+    //     // Actual tokenId will be current + 1
+    //     uint256 _id = _tokenIds.current() + 1;
+    //     tokenMetadataCIDs[_id] = _metadata_cid;
+    //     tokenVerificationPaths[_id] = _verification_path;
+    //     tokenStatuses[_id] = _status;
+
+    //     // Mint token
+    //     _mintInternal(_dst);
+
+    //     // Refund any excess payment
+    //     if (!_skipPayment) {
+    //         uint refund = msg.value - cost;
+    //         if (refund > 0) {
+    //             (bool success, ) = _dst.call{value: refund}("");
+    //             require(success, "Refund failed");
+    //         }
+    //     }
+    // }
+
+    function authorizeMintWithCode(uint32 _auth_code, address _dst, string calldata _metadata_cid, uint32 _expiry, uint32 _seconds_to_pay, string calldata _verification_tier)
+        external
+        override
+        onlyMinter
+    {
         bytes32 _digest = _getDigest(_auth_code, _dst);
-
-        string memory _old_metadata = authorizedMetadataCIDs[_digest];
-        require(bytes(_old_metadata).length == 0, "Code already authorized");
+        require(bytes(authorizedMetadataCIDs[_digest]).length == 0, "Code already authorized");
         authorizedMetadataCIDs[_digest] = _metadata_cid;
-        authorizedVerificationPaths[_digest] = _verification_path;
-        //TODO: Should we check that we are given an expiry in the future?
-        authorizedStatuses[_digest] = Status (false, _expiry);
-        authorizedSkipPayments[_digest] = _skipPayment;
-
-        if (sendGasOnAuthorization > 0) {
-            (bool sent, ) = _dst.call{value: sendGasOnAuthorization}("");
-            require(sent, "Failed to send gas for minting");
-        }
+        authorizedStatuses[_digest] = Status (false, _expiry, _verification_tier);
+        authorizedSecondsToPay[_digest] = _seconds_to_pay;
     }
+
+    /// @dev Authorize the minting of a new token
+    //TODO: Old implementation
+    // function authorizeMinting(uint32 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path, 
+    //     uint _expiry, bool _skipPayment) external {
+    //     require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
+    //     bytes32 _digest = _getDigest(_auth_code, _dst);
+
+    //     string memory _old_metadata = authorizedMetadataCIDs[_digest];
+    //     require(bytes(_old_metadata).length == 0, "Code already authorized");
+    //     authorizedMetadataCIDs[_digest] = _metadata_cid;
+    //     authorizedVerificationPaths[_digest] = _verification_path;
+    //     //TODO: Should we check that we are given an expiry in the future?
+    //     authorizedStatuses[_digest] = Status (false, _expiry);
+    //     authorizedSkipPayments[_digest] = _skipPayment;
+
+    //     if (sendGasOnAuthorization > 0) {
+    //         (bool sent, ) = _dst.call{value: sendGasOnAuthorization}("");
+    //         require(sent, "Failed to send gas for minting");
+    //     }
+    // }
 
     /*****************
     Public interfaces
@@ -231,32 +317,21 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
                 : "";
     }
 
-    function tokenExpiry(uint256 tokenId)
+    /// @dev Get the current expiry of a specific token in secs since epoch
+    /// @param _tokenId ID of the token to query
+    /// @return expiry The expiry of the given token in secs since epoch
+    function tokenExpiry(uint256 _tokenId)
         public
         view
         override
         returns (uint expiry)
     {
         require(
-            _exists(tokenId),
+            _exists(_tokenId),
             "Expiry query for nonexistent token"
         );
 
-        return tokenStatuses[tokenId].expiry;
-    }
-
-    function tokenIsRevoked(uint256 tokenId)
-        public
-        view
-        override
-        returns (bool isRevoked)
-    {
-        require(
-            _exists(tokenId),
-            "IsRevoked query for nonexistent token"
-        );
-
-        return tokenStatuses[tokenId].isRevoked;
+        return tokenStatuses[_tokenId].expiry;
     }
 
     function hasValidToken(address _addr)
@@ -269,7 +344,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         for (uint i=0; i<numTokens; i++) {
             uint tokenId = tokenOfOwnerByIndex(_addr, i);
             if (tokenStatuses[tokenId].expiry > block.timestamp
-                && !tokenStatuses[tokenId].isRevoked) {
+                && tokenStatuses[tokenId].verified) {
                     return true;
                 }
         }
@@ -277,17 +352,55 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         return false;
     }
 
+    /// @dev Returns the amount in NATIVE (wei) which is expected for a given mint which uses an auth code
+    /// @param _auth_code The auth code used to authorize the mint
+    /// @param _dst Address to mint the token to
+    function getRequiredMintCostForCode(uint32 _auth_code, address _dst)
+        public
+        view
+        override
+        returns (uint)
+    {
+        bytes32 _digest = _getDigest(_auth_code, _dst);
+        string memory _metadata_cid = authorizedMetadataCIDs[_digest];
+        require(bytes(_metadata_cid).length != 0, "Unauthorized code");
+        return getRequiredMintCostForSeconds(authorizedSecondsToPay[_digest]);
+    }
+
+    /// @dev Returns the amount in NATIVE (wei) which is expected for a given amount of subscription time in seconds
+    /// @param _seconds The number of seconds of subscription time to calculate the cost for
+    function getRequiredMintCostForSeconds(uint32 _seconds)
+        public
+        view
+        override
+        returns (uint)
+    {
+        return getSubscriptionPricePerYearNative() * (_seconds / SECS_IN_YEAR);
+    }
+
     /**
      * @notice Returns the amount in NATIVE (wei) which is expected
-     * when minting
+     * when minting per year of subscription
      */
-    function getMintPriceNative() public view returns (uint) {
+    function getSubscriptionPricePerYearNative() 
+        internal 
+        view 
+        returns (uint) {
         (
             uint price,
             uint8 decimals
         ) = nativeUSDPriceFeed.lastPrice();
         uint decimalConvert = 10 ** WEI_TO_NATIVE_DECIMALS / 10 ** decimals;
-        return (price * mintCost * decimalConvert) / 10 ** MINT_COST_DECIMALS;
+        return (price * subscriptionCostPerYear * decimalConvert) / 10 ** SUBSCRIPTION_COST_DECIMALS;
+    }
+
+    /// @dev Returns the cost for subscription per year in USD, to SUBSCRIPTION_COST_DECIMALS decimal places
+    function getSubscriptionCostPerYearUSD() 
+        external 
+        view 
+        override
+        returns (uint) {
+        return subscriptionCostPerYear;
     }
 
     ///@dev Support interfaces for Access Control and ERC721
@@ -342,11 +455,11 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         sendGasOnAuthorization = value_;
     }
 
-    /// @notice Set the mintCost in USD
+    /// @notice Set the subscriptionCostPerYear in USD
     /// @param value_ uint new mintCost in USD
-    function setMintCost(uint value_) external {
+    function setSubscriptionCost(uint value_) external {
         require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
-        mintCost = value_;
+        subscriptionCostPerYear = value_;
     }
 
     /// @notice Set the price feed used for native - USD conversions
@@ -360,22 +473,28 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     Token Status Updates
     *****************/
 
-    function setRevokeToken(uint _tokenId, bool _revoked) external override {
+    /// @dev Set whether a token is verified or not
+    /// @param _tokenId ID of the token
+    /// @param _verified A bool indicating whether this token is verified
+    function setVerifiedToken(uint _tokenId, bool _verified) external override {
         require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
         require(
             _exists(_tokenId),
-            "revokeToken for nonexistent token"
+            "setVerifiedToken for nonexistent token"
         );
-        tokenStatuses[_tokenId].isRevoked = _revoked;
+        tokenStatuses[_tokenId].verified = _verified;
     }
 
-    function updateExpiry(uint tokenId_, uint expiry_) external override {
+    /// @dev Update the given token to a new expiry
+    /// @param _tokenId ID of the token whose expiry should be updated
+    /// @param _expiry New expiry date for the token in secs since epoch
+    function updateExpiry(uint _tokenId, uint _expiry) external override {
         require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
         require(
-            _exists(tokenId_),
+            _exists(_tokenId),
             "updateExpiry for nonexistent token"
         );
-        tokenStatuses[tokenId_].expiry = expiry_;
+        tokenStatuses[_tokenId].expiry = _expiry;
     }
 
     /*****************
@@ -393,8 +512,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
     /// @notice Tells the contract which forwarder on this network to trust
     /// @param _forwarder the address of the forwarder
-    function setTrustedForwarder(address _forwarder) external {
-        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+    function setTrustedForwarder(address _forwarder) external onlyOwner {
         _setTrustedForwarder(_forwarder);
     } 
 
@@ -402,13 +520,23 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     PROXY
     *****************/
 
-    function _authorizeUpgrade(address) override internal view {
-        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+    function _authorizeUpgrade(address) override internal view onlyOwner {
     }
 
     /*****************
     HELPERS
     *****************/
+
+    modifier onlyOwner() {
+        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+        _;
+    }
+
+    modifier onlyMinter() {
+        require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
+        _;
+    }
+
     function _getDigest(uint32 _auth_code, address _dst) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(_auth_code, _dst, address(this)));
     }
