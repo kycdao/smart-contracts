@@ -130,7 +130,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     function mintWithSignature(
         uint32 /*_auth_code*/, 
         string memory /*_metadata_cid*/, 
-        uint32 /*_expiry*/,
+        uint /*_expiry*/,
         uint32 /*_seconds_to_pay*/, 
         string calldata /*_verification_tier*/, 
         bytes calldata /*_signature*/) 
@@ -238,7 +238,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     //     }
     // }
 
-    function authorizeMintWithCode(uint32 _auth_code, address _dst, string calldata _metadata_cid, uint32 _expiry, uint32 _seconds_to_pay, string calldata _verification_tier)
+    function authorizeMintWithCode(uint32 _auth_code, address _dst, string calldata _metadata_cid, uint _expiry, uint32 _seconds_to_pay, string calldata _verification_tier)
         external
         override
         onlyMinter

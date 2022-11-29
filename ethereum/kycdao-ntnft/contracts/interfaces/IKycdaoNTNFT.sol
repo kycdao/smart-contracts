@@ -28,7 +28,7 @@ interface IKycdaoNTNFT {
         uint32 _auth_code, 
         address _dst, 
         string calldata _metadata_cid, 
-        uint32 _expiry, 
+        uint _expiry, 
         uint32 _seconds_to_pay, 
         string calldata _verification_tier) 
         external;
@@ -57,7 +57,7 @@ interface IKycdaoNTNFT {
     function mintWithSignature(
         uint32 _auth_code, 
         string memory _metadata_cid, 
-        uint32 _expiry, 
+        uint _expiry, 
         uint32 _seconds_to_pay, 
         string calldata _verification_tier, 
         bytes calldata _signature) 
