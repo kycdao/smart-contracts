@@ -11,11 +11,24 @@ jobs:
       run:
         working-directory: near/kycdao-ntnft
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [16.x]
     steps:
     - uses: actions/checkout@v3
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: near/kycdao-ntnft/package-lock.json
+    - name: Install dependencies
+      run: npm ci
     - uses: actions-rs/toolchain@v1
       with:
+        cwd: near/kycdao-ntnft
         toolchain: stable
     - uses: actions-rs/cargo@v1
       with:
+        cwd: near/kycdao-ntnft
         command: test
