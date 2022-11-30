@@ -1,0 +1,21 @@
+name: Near
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+jobs:
+  buildandtest:
+    name: build, test
+    defaults:
+      run:
+        working-directory: near/kycdao-ntnft
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+    - uses: actions-rs/cargo@v1
+      with:
+        command: test
