@@ -27,9 +27,8 @@ jobs:
         cmd: install
     - uses: actions-rs/toolchain@v1
       with:
-        cwd: near/kycdao-ntnft
         toolchain: stable
     - uses: actions-rs/cargo@v1
       with:
-        cwd: near/kycdao-ntnft
+        args: --manifest-path near/kycdao-ntnft/Cargo.toml
         command: test
