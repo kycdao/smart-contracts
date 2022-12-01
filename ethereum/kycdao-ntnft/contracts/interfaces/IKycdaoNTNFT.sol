@@ -74,6 +74,11 @@ interface IKycdaoNTNFT {
     /// @return expiry The expiry of the given token in secs since epoch
     function tokenExpiry(uint256 _tokenId) external view returns (uint expiry);
 
+    /// @dev Get the verification tier of a specific token
+    /// @param _tokenId ID of the token to query
+    /// @return tier The tier of the given token in secs since epoch
+    function tokenTier(uint256 _tokenId) external view returns (string memory tier);
+
     /// UPDATE STATUS
 
     /// @dev Set whether a token is verified or not

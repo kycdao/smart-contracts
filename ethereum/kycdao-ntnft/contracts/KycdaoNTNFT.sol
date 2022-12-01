@@ -48,7 +48,6 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     struct Status {
         bool verified;
         uint expiry;
-        string verificationTier;
     }
     mapping(bytes32 => Status) private authorizedStatuses;
     mapping(uint256 => Status) private tokenStatuses;
@@ -65,13 +64,17 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     uint public constant SUBSCRIPTION_COST_DECIMALS = 8;
 
     IPriceFeed public nativeUSDPriceFeed;
-    mapping(bytes32 => uint32) private authorizedSecondsToPay; /* How many seconds need to be paid for on mint */    
+    mapping(bytes32 => bool) private authorizedSkipPayments; /* [UNUSED] Whether to skip mint payments */      
 
     /*****************
     END Version 0.3 VARIABLE DECLARATION
     *****************/
 
     uint public constant SECS_IN_YEAR = 365 * 24 * 60 * 60;
+    mapping(bytes32 => uint32) private authorizedSecondsToPay; /* How many seconds need to be paid for on mint */    
+
+    mapping(bytes32 => string) private authorizedTiers;
+    mapping(uint256 => string) private tokenTiers;
 
     /*****************
     END Version 0.4 VARIABLE DECLARATION
@@ -156,6 +159,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
         Status memory _status = authorizedStatuses[_digest];
         uint32 _secondsToPay = authorizedSecondsToPay[_digest];
+        string memory _tier = authorizedTiers[_digest];
 
         // check for payment or whether it should be skipped
         uint cost = getRequiredMintCostForSeconds(_secondsToPay);
@@ -169,12 +173,14 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         delete authorizedMetadataCIDs[_digest];
         delete authorizedStatuses[_digest];
         delete authorizedSecondsToPay[_digest];
+        delete authorizedTiers[_digest];
 
         // Store token metadata CID and verification path
         // Actual tokenId will be current + 1
         uint256 _id = _tokenIds.current() + 1;
         tokenMetadataCIDs[_id] = _metadata_cid;
         tokenStatuses[_id] = _status;
+        tokenTiers[_id] = _tier;
 
         // Mint token
         _mintInternal(_dst);
@@ -246,7 +252,8 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         bytes32 _digest = _getDigest(_auth_code, _dst);
         require(bytes(authorizedMetadataCIDs[_digest]).length == 0, "Code already authorized");
         authorizedMetadataCIDs[_digest] = _metadata_cid;
-        authorizedStatuses[_digest] = Status (false, _expiry, _verification_tier);
+        authorizedStatuses[_digest] = Status (false, _expiry);
+        authorizedTiers[_digest] = _verification_tier;
         authorizedSecondsToPay[_digest] = _seconds_to_pay;
     }
 
@@ -324,7 +331,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         public
         view
         override
-        returns (uint expiry)
+        returns (uint)
     {
         require(
             _exists(_tokenId),
@@ -332,6 +339,23 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         );
 
         return tokenStatuses[_tokenId].expiry;
+    }
+
+    /// @dev Get the verification tier of a specific token
+    /// @param _tokenId ID of the token to query
+    /// @return tier The tier of the given token in secs since epoch
+    function tokenTier(uint256 _tokenId)
+        public
+        view
+        override
+        returns (string memory)
+    {
+        require(
+            _exists(_tokenId),
+            "Tier query for nonexistent token"
+        );
+
+        return tokenTiers[_tokenId];
     }
 
     function hasValidToken(address _addr)
@@ -375,7 +399,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         override
         returns (uint)
     {
-        return getSubscriptionPricePerYearNative() * (_seconds / SECS_IN_YEAR);
+        return (getSubscriptionPricePerYearNative() * _seconds) / SECS_IN_YEAR;
     }
 
     /**
@@ -390,8 +414,8 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
             uint price,
             uint8 decimals
         ) = nativeUSDPriceFeed.lastPrice();
-        uint decimalConvert = 10 ** WEI_TO_NATIVE_DECIMALS / 10 ** decimals;
-        return (price * subscriptionCostPerYear * decimalConvert) / 10 ** SUBSCRIPTION_COST_DECIMALS;
+        uint decimalConvert = 10 ** (WEI_TO_NATIVE_DECIMALS - SUBSCRIPTION_COST_DECIMALS + decimals);
+        return (subscriptionCostPerYear * decimalConvert) / price;
     }
 
     /// @dev Returns the cost for subscription per year in USD, to SUBSCRIPTION_COST_DECIMALS decimal places
