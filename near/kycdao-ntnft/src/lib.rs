@@ -11,9 +11,17 @@ use serde::{Serialize, Deserialize};
 type MintAuthorizationCode = u32;
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-pub struct Status {
+pub struct OldStatus {
     /// shows if the token is revoked by the issuer
     pub is_revoked: bool,
+    /// expiry timestamp
+    pub expiry: Option<u64>,
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+pub struct Status {
+    /// shows if the token owner is verified
+    pub verified: bool,
     /// expiry timestamp
     pub expiry: Option<u64>,
 }
@@ -24,14 +32,14 @@ impl Status {
             Some(exp) => exp <= block_timestamp(),
             None => false,
         };
-        !expired && !self.is_revoked
+        !expired && self.verified
     }
 }
 
 impl Default for Status {
     fn default() -> Self {
         Status {
-            is_revoked: false,
+            verified: true,
             expiry: None,
         }
     }
@@ -46,6 +54,10 @@ pub struct OldKycdaoNTNFT {
     mint_authorizer: AccountId,
     /// tracks if token minting is authorized, stores metadata temporarily
     authorized_token_metadata: LookupMap<Vec<u8>, TokenMetadata>,
+    /// stores status for authorized (but not yet minted) tokens temporarily
+    authorized_statuses: UnorderedMap<Vec<u8>, OldStatus>,
+    /// stores status for minted tokens
+    token_statuses: UnorderedMap<TokenId, OldStatus>,
 }
 
 #[near_bindgen]
@@ -125,14 +137,33 @@ impl KycdaoNTNFT {
     #[init(ignore_state)]
     pub fn migrate() -> Self {
         let old_state: OldKycdaoNTNFT = env::state_read().expect("failed");
+
+        let mut new_authorized_statuses = UnorderedMap::new(StorageKey::AuthorizedStatuses);
+        for (key, old_status) in old_state.authorized_statuses.iter() {
+            let new_status = Status {
+                verified: !old_status.is_revoked,
+                expiry: old_status.expiry,
+            };
+            new_authorized_statuses.insert(&key, &new_status);
+        }
+
+        let mut new_token_statuses = UnorderedMap::new(StorageKey::TokenStatuses);
+        for (key, old_status) in old_state.token_statuses.iter() {
+            let new_status = Status {
+                verified: !old_status.is_revoked,
+                expiry: old_status.expiry,
+            };
+            new_token_statuses.insert(&key, &new_status);
+        }
+
         Self {
             tokens: old_state.tokens,
             metadata: old_state.metadata,
             next_token_id: old_state.next_token_id,
             mint_authorizer: old_state.mint_authorizer,
             authorized_token_metadata: old_state.authorized_token_metadata,
-            authorized_statuses: UnorderedMap::new(StorageKey::AuthorizedStatuses),
-            token_statuses: UnorderedMap::new(StorageKey::TokenStatuses),
+            authorized_statuses: new_authorized_statuses,
+            token_statuses: new_token_statuses,
         }
     }
 
@@ -176,7 +207,7 @@ impl KycdaoNTNFT {
         assert!(authorized_opt.is_none(), "Code already authorized");
 
         let new_status = Status {
-            is_revoked: false,
+            verified: true,
             expiry,
         };
 
@@ -206,9 +237,9 @@ impl KycdaoNTNFT {
     }
 
     /// Check if the token is revoked
-    pub fn token_is_revoked(&self, token_id: TokenId) -> bool {
+    /*pub fn token_is_revoked(&self, token_id: TokenId) -> bool {
         self.token_statuses.get(&token_id).unwrap_or_default().is_revoked
-    }
+    }*/
 
     /// Check if an account has any valid tokens
     pub fn has_valid_token(&self, address: AccountId) -> bool {
@@ -231,10 +262,10 @@ impl KycdaoNTNFT {
     /*****************
     Admin
     *****************/
-    pub fn set_revoke_token(&mut self, token_id: TokenId, is_revoked: bool) {
+    pub fn set_verified_token(&mut self, token_id: TokenId, verified: bool) {
         self.assert_mint_authorizer();
         let mut status = self.token_statuses.get(&token_id).unwrap_or_default();
-        status.is_revoked = is_revoked;
+        status.verified = verified;
         self.token_statuses.insert(&token_id, &status);
     }
 
@@ -439,25 +470,25 @@ mod tests {
         let token = contract.mint(489);
 
         assert_eq!(contract.token_expiry(token.token_id.clone()), None);
-        assert_eq!(contract.token_is_revoked(token.token_id.clone()), false);
+        assert_eq!(contract.token_statuses.get(&token.token_id).unwrap().verified, true);
         assert_eq!(contract.has_valid_token(accounts(3)), true);
 
         contract.update_expiry(token.token_id.clone(), Some(1000));
 
         assert_eq!(contract.token_expiry(token.token_id.clone()), Some(1000));
-        assert_eq!(contract.token_is_revoked(token.token_id.clone()), false);
+        assert_eq!(contract.token_statuses.get(&token.token_id).unwrap().verified, true);
         assert_eq!(contract.has_valid_token(accounts(3)), false);
 
         contract.update_expiry(token.token_id.clone(), Some(9000000000));
 
         assert_eq!(contract.token_expiry(token.token_id.clone()), Some(9000000000));
-        assert_eq!(contract.token_is_revoked(token.token_id.clone()), false);
+        assert_eq!(contract.token_statuses.get(&token.token_id).unwrap().verified, true);
         assert_eq!(contract.has_valid_token(accounts(3)), true);
 
-        contract.set_revoke_token(token.token_id.clone(), true);
+        contract.set_verified_token(token.token_id.clone(), false);
 
         assert_eq!(contract.token_expiry(token.token_id.clone()), Some(9000000000));
-        assert_eq!(contract.token_is_revoked(token.token_id.clone()), true);
+        assert_eq!(contract.token_statuses.get(&token.token_id).unwrap().verified, false);
         assert_eq!(contract.has_valid_token(accounts(3)), false);
 
         contract.authorize_minting(789, accounts(3), sample_token_metadata("other".to_string()), None);
@@ -535,7 +566,7 @@ mod tests {
             .predecessor_account_id(accounts(4))
             .build());
 
-        contract.set_revoke_token(token.token_id.clone(), true);
+        contract.set_verified_token(token.token_id.clone(), false);
     }
 
     #[test]
@@ -559,7 +590,7 @@ mod tests {
         let token = contract.mint(6547);
 
         assert_eq!(contract.token_expiry(token.token_id.clone()), Some(9000000000));
-        assert_eq!(contract.token_is_revoked(token.token_id.clone()), true);
-        assert_eq!(contract.has_valid_token(accounts(4)), false);
+        assert_eq!(contract.token_statuses.get(&token.token_id).unwrap().verified, true);
+        assert_eq!(contract.has_valid_token(accounts(4)), true);
     }
 }
