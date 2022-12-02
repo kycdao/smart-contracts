@@ -24,17 +24,17 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     bytes32 public constant OWNER_ROLE = keccak256("OWNER_ROLE");
 
     string public metadataBaseURI; /* String to prepend to metadata CIDs */
-    string public verificationDataBaseURI; /* String to prepend to verification data paths */
+    string public verificationDataBaseURI; /* [UNUSED] String to prepend to verification data paths */
 
     // Temporary storage for token data after authorization, but before minting (indexed by digest)
     mapping(bytes32 => string) private authorizedMetadataCIDs; /* Track if token minting is authorized, temporary storage for metadata CIDs */
     //TODO: Verification paths are unused
-    mapping(bytes32 => string) private authorizedVerificationPaths; /* Temporary storage for verification paths */
+    mapping(bytes32 => string) private authorizedVerificationPaths; /* [UNUSED] Temporary storage for verification paths */
 
     // Final storage for token data after minting (indexed by token ID)
     mapping(uint256 => string) private tokenMetadataCIDs; /* Metadata CIDs per token */
     //TODO: Verification paths are unused
-    mapping(uint256 => string) private tokenVerificationPaths; /* Verification paths per token */
+    mapping(uint256 => string) private tokenVerificationPaths; /* [UNUSED] Verification paths per token */
 
     uint public sendGasOnAuthorization;
 
@@ -96,22 +96,19 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         string memory name_,
         string memory symbol_,
         string memory metadataBaseURI_,
-        string memory verificationDataBaseURI_,
         address nativeUSDPriceFeedAddr
     )  public onlyInitializing {
-        _initialize(name_, symbol_, metadataBaseURI_, verificationDataBaseURI_, nativeUSDPriceFeedAddr);
+        _initialize(name_, symbol_, metadataBaseURI_, nativeUSDPriceFeedAddr);
     }
 
     /// @dev initialize sets the contract metadata and the roles
     /// @param name_ Token name
     /// @param symbol_ Token symbol
     /// @param metadataBaseURI_ Base URI for metadata CIDs
-    /// @param verificationDataBaseURI_ Base URI for verification paths
     function _initialize(
         string memory name_,
         string memory symbol_,
         string memory metadataBaseURI_,
-        string memory verificationDataBaseURI_,
         address nativeUSDPriceFeedAddr
     )  internal onlyInitializing {
         __ERC721_init(name_, symbol_);
@@ -119,7 +116,6 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         _setupRole(OWNER_ROLE, _msgSender());
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());        
         _setBaseURI(metadataBaseURI_);
-        _setVerificationBaseURI(verificationDataBaseURI_);
 
         sendGasOnAuthorization = 0;
         subscriptionCostPerYear = 5 * 10 ** SUBSCRIPTION_COST_DECIMALS;
@@ -153,7 +149,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         address _dst = _msgSender();
         bytes32 _digest = _getDigest(_auth_code, _dst);
 
-        // get and remove authorized metadata CID and verification path
+        // get and remove authorized metadata CID
         string memory _metadata_cid = authorizedMetadataCIDs[_digest];
         require(bytes(_metadata_cid).length != 0, "Unauthorized code");
 
@@ -175,7 +171,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         delete authorizedSecondsToPay[_digest];
         delete authorizedTiers[_digest];
 
-        // Store token metadata CID and verification path
+        // Store token metadata CID
         // Actual tokenId will be current + 1
         uint256 _id = _tokenIds.current() + 1;
         tokenMetadataCIDs[_id] = _metadata_cid;
@@ -222,40 +218,18 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         return "0.4.0";
     }
 
-    function tokenURI(uint256 tokenId)
+    function tokenURI(uint256 _tokenId)
         public
         view
         override
+        tokenExists(_tokenId)
         returns (string memory)
     {
-        require(
-            _exists(tokenId),
-            "ERC721Metadata: URI query for nonexistent token"
-        );
-
         string memory uri = _baseURI();
-        string memory metadata_cid = tokenMetadataCIDs[tokenId];
+        string memory metadata_cid = tokenMetadataCIDs[_tokenId];
         return
             bytes(uri).length > 0
                 ? string(abi.encodePacked(uri, metadata_cid))
-                : "";
-    }
-
-    function tokenVerificationURI(uint256 tokenId)
-        public
-        view
-        returns (string memory)
-    {
-        require(
-            _exists(tokenId),
-            "ERC721Metadata: URI query for nonexistent token"
-        );
-
-        string memory uri = _verificationBaseURI();
-        string memory verification_path = tokenVerificationPaths[tokenId];
-        return
-            bytes(uri).length > 0
-                ? string(abi.encodePacked(uri, verification_path))
                 : "";
     }
 
@@ -266,13 +240,9 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         public
         view
         override
+        tokenExists(_tokenId)
         returns (uint)
     {
-        require(
-            _exists(_tokenId),
-            "Expiry query for nonexistent token"
-        );
-
         return tokenStatuses[_tokenId].expiry;
     }
 
@@ -283,13 +253,9 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         public
         view
         override
+        tokenExists(_tokenId)
         returns (string memory)
     {
-        require(
-            _exists(_tokenId),
-            "Tier query for nonexistent token"
-        );
-
         return tokenTiers[_tokenId];
     }
 
@@ -385,8 +351,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     }
 
     ///@dev for retrieving all payments sent to contract
-    function sendBalanceTo(address payable recipient_) public {
-        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+    function sendBalanceTo(address payable recipient_) public onlyOwner {
         recipient_.transfer(address(this).balance);
     }
 
@@ -395,36 +360,25 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     *****************/
     /// @notice Set new base URI for token metadata CIDs
     /// @param baseURI_ String to prepend to token metadata CIDs
-    function setMetadataBaseURI(string memory baseURI_) external {
-        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+    function setMetadataBaseURI(string memory baseURI_) external onlyOwner {
         _setBaseURI(baseURI_);
-    }
-
-    /// @notice Set new base URI for verification paths
-    /// @param baseURI_ String to prepend to verification paths
-    function setVerificationBaseURI(string memory baseURI_) external {
-        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
-        _setVerificationBaseURI(baseURI_);
     }
 
     /// @notice Set the amount of gas to be sent after mint authorization
     /// @param value_ uint WEI to send
-    function setSendGasOnAuthorization(uint value_) external {
-        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+    function setSendGasOnAuthorization(uint value_) external onlyOwner {
         sendGasOnAuthorization = value_;
     }
 
     /// @notice Set the subscriptionCostPerYear in USD
     /// @param value_ uint new mintCost in USD
-    function setSubscriptionCost(uint value_) external {
-        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+    function setSubscriptionCost(uint value_) external onlyOwner {
         subscriptionCostPerYear = value_;
     }
 
     /// @notice Set the price feed used for native - USD conversions
     /// @param address_ address the address of the price feed
-    function setPriceFeed(address address_) external {
-        require(hasRole(OWNER_ROLE, _msgSender()), "!owner");
+    function setPriceFeed(address address_) external onlyOwner {
         nativeUSDPriceFeed = IPriceFeed(address_);
     }
 
@@ -435,24 +389,14 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     /// @dev Set whether a token is verified or not
     /// @param _tokenId ID of the token
     /// @param _verified A bool indicating whether this token is verified
-    function setVerifiedToken(uint _tokenId, bool _verified) external override {
-        require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
-        require(
-            _exists(_tokenId),
-            "setVerifiedToken for nonexistent token"
-        );
+    function setVerifiedToken(uint _tokenId, bool _verified) external override onlyMinter tokenExists(_tokenId) {
         tokenStatuses[_tokenId].verified = _verified;
     }
 
     /// @dev Update the given token to a new expiry
     /// @param _tokenId ID of the token whose expiry should be updated
     /// @param _expiry New expiry date for the token in secs since epoch
-    function updateExpiry(uint _tokenId, uint _expiry) external override {
-        require(hasRole(MINTER_ROLE, _msgSender()), "!minter");
-        require(
-            _exists(_tokenId),
-            "updateExpiry for nonexistent token"
-        );
+    function updateExpiry(uint _tokenId, uint _expiry) external override onlyMinter tokenExists(_tokenId) {
         tokenStatuses[_tokenId].expiry = _expiry;
     }
 
@@ -496,6 +440,13 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         _;
     }
 
+    modifier tokenExists(uint _tokenId) {
+        require(
+            _exists(_tokenId),
+            "!tokenExists");
+        _;
+    }
+
     function _getDigest(uint32 _auth_code, address _dst) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(_auth_code, _dst, address(this)));
     }
@@ -509,17 +460,6 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     /// @param baseURI_ String to prepend to token IDs
     function _setBaseURI(string memory baseURI_) internal {
         metadataBaseURI = baseURI_;
-    }
-
-    /// @notice internal helper to retrieve private verification base URI
-    function _verificationBaseURI() internal view returns (string memory) {
-        return verificationDataBaseURI;
-    }
-
-    /// @notice internal helper to update verification data URI
-    /// @param baseURI_ String to prepend to verification paths
-    function _setVerificationBaseURI(string memory baseURI_) internal {
-        verificationDataBaseURI = baseURI_;
     }
 
     /// @dev Internal util for minting

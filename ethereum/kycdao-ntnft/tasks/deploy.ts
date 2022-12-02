@@ -75,7 +75,7 @@ task("deploy", "Deploys the proxy and logic contract (using xdeploy) to a networ
         const proxyContractAbstract = (await hre.ethers.getContractFactory('ProxyUUPS')) as ContractFactory
         const proxyContract = proxyContractAbstract.attach(xdeployResult.address)
         const initArgs = args[contract]
-        const initData = logicContract.interface.encodeFunctionData('initialize', [initArgs.name, initArgs.symbol, initArgs.baseURI, initArgs.verificationBaseURI, deployedPriceFeedAddr])
+        const initData = logicContract.interface.encodeFunctionData('initialize', [initArgs.name, initArgs.symbol, initArgs.baseURI, deployedPriceFeedAddr])
         await setGasPriceIfReq(hre)
         const tx = await proxyContract.initProxy(deployedLogicAddr, initData)
         console.log('Done')

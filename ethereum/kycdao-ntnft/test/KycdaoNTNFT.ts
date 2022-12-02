@@ -34,7 +34,6 @@ const testInitArgs = {
   name: 'test', 
   symbol: 'TEST',
   baseURI: 'metadataBaseURI',
-  verificationBaseURI: 'verificationURI',
 }    
 
 const testMetaUID = 'ABC123'
@@ -103,7 +102,7 @@ describe.only('KycdaoNtnft Membership', function () {
     //      but the Create2DeployerLocal.sol is failing at the moment
     proxyDeployed = await ProxyAbstract.deploy() as ProxyUUPS
     await proxyDeployed.deployed()
-    const testArgs = [testInitArgs.name, testInitArgs.symbol, testInitArgs.baseURI, testInitArgs.verificationBaseURI, PriceFeedDeployed.address]
+    const testArgs = [testInitArgs.name, testInitArgs.symbol, testInitArgs.baseURI, PriceFeedDeployed.address]
     initData = KycdaoNTNFTAbstract.interface.encodeFunctionData('initialize', testArgs)
     await proxyDeployed.initProxy(KycdaoNTNFTDeployed.address, initData)
     KycdaoNTNFTAtProxy = KycdaoNTNFTAbstract.attach(proxyDeployed.address) as KycdaoNTNFT
@@ -184,6 +183,10 @@ describe.only('KycdaoNtnft Membership', function () {
       await memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
       await expect(memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)).to.be.revertedWith('Code already authorized')
     })
+
+    it('fails to get mint cost for code that doesnt exist', async function () {
+      await expect(memberNftAsAnyone.getRequiredMintCostForCode(456, anyone.address)).to.be.revertedWith('Unauthorized code')
+    })
   })
 
   describe('using sendGasOnAuth', function () {
@@ -209,6 +212,19 @@ describe.only('KycdaoNtnft Membership', function () {
   })
 
   describe('minting', function () {
+    describe('mint with signature unsupported for now', function () {
+      it('should not allow anyone to mint', async function () {
+        await expect(memberNftAsAnyone.mintWithSignature(
+          456 /*_auth_code*/, 
+          testMetaUID /*_metadata_cid*/, 
+          expiration /*_expiry*/,
+          SECS_IN_YEAR /*_seconds_to_pay*/, 
+          testTier /*_verification_tier*/, 
+          [] /*_signature*/
+        )).to.be.revertedWith('Not yet implemented')
+      })
+    })
+
     describe('mint  admin', function () {
       it('Authorize minter to mint a token ', async function () {
         await memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
@@ -413,7 +429,7 @@ describe.only('KycdaoNtnft Membership', function () {
       })
 
       it('fails when called with a non-existant tokenId', async function () {
-        await expect(memberNftAsAnyone.tokenURI(1)).to.be.revertedWith('ERC721Metadata: URI query for nonexistent token')
+        await expect(memberNftAsAnyone.tokenURI(1)).to.be.revertedWith('!tokenExists')
       })
     })
   })
@@ -433,12 +449,19 @@ describe.only('KycdaoNtnft Membership', function () {
         await memberNftAsAnyone.mintWithCode(456, {value: expectedMintCostOneYear})
         const tokenId = await memberNftAsAnyone.tokenOfOwnerByIndex(anyone.address, 0)
         expect(await memberNftAsAnyone.hasValidToken(anyone.address)).to.equal(true)
+      })
+
+      it('Has valid tier', async function () {
+        await memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
+        await memberNftAsAnyone.mintWithCode(456, {value: expectedMintCostOneYear})
+        const tokenId = await memberNftAsAnyone.tokenOfOwnerByIndex(anyone.address, 0)
+        expect(await memberNftAsAnyone.tokenTier(tokenId)).to.equal(testTier)
       })      
     })
 
     describe('checking status for NON existing token', function () {
       it('Expiry reverts with error', async function () {
-        await expect(memberNftAsAnyone.tokenExpiry(1)).to.be.revertedWith('Expiry query for nonexistent token')
+        await expect(memberNftAsAnyone.tokenExpiry(1)).to.be.revertedWith('!tokenExists')
       })
 
       it('Has valid NFT returns false', async function () {
@@ -461,11 +484,11 @@ describe.only('KycdaoNtnft Membership', function () {
     })
 
     it('fails to update expiry with a non-existant tokenId', async function () {
-      await expect(memberNftAsMinter.updateExpiry(1, 123)).to.be.revertedWith('updateExpiry for nonexistent token')
+      await expect(memberNftAsMinter.updateExpiry(1, 123)).to.be.revertedWith('!tokenExists')
     })
 
     it('fails to update revoked status with a non-existant tokenId', async function () {
-      await expect(memberNftAsMinter.setVerifiedToken(1, false)).to.be.revertedWith('setVerifiedToken for nonexistent token')
+      await expect(memberNftAsMinter.setVerifiedToken(1, false)).to.be.revertedWith('!tokenExists')
     })
 
     it('To new expiry, updates expiry', async function () {
@@ -540,7 +563,23 @@ describe.only('KycdaoNtnft Membership', function () {
       await memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
       await memberNftAsAnyone.mintWithCode(456, {value: newNativeMintCost})
       expect(await memberNftAsAnyone.balanceOf(anyone.address)).to.equal(1)
-    })    
+    })
+    
+    it('updates the expected native mint cost for a different duration', async function () {
+      expect((await memberNftAsAnyone.getRequiredMintCostForSeconds(BigNumber.from(SECS_IN_YEAR * 2)))).to.equal(expectedMintCostOneYear.mul(2))
+    })
+
+    it('gives the correct mint cost for a specific auth code', async function () {
+      await memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
+      const mintCost = await memberNftAsAnyone.getRequiredMintCostForCode(456, anyone.address)
+      expect(mintCost).to.equal(expectedMintCostOneYear)
+    })
+
+    it('gives the correct mint cost for a specific auth code with a different duration', async function () {
+      await memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR * 2, testTier)
+      const mintCost = await memberNftAsAnyone.getRequiredMintCostForCode(456, anyone.address)
+      expect(mintCost).to.equal(expectedMintCostOneYear.mul(2))
+    })
   })
 
   describe('setting pricefeed', function () {
