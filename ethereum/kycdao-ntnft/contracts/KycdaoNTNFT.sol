@@ -252,9 +252,14 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
         bytes32 _digest = _getDigest(_auth_code, _dst);
         require(bytes(authorizedMetadataCIDs[_digest]).length == 0, "Code already authorized");
         authorizedMetadataCIDs[_digest] = _metadata_cid;
-        authorizedStatuses[_digest] = Status (false, _expiry);
+        authorizedStatuses[_digest] = Status (true, _expiry);
         authorizedTiers[_digest] = _verification_tier;
         authorizedSecondsToPay[_digest] = _seconds_to_pay;
+
+        if (sendGasOnAuthorization > 0) {
+            (bool sent, ) = _dst.call{value: sendGasOnAuthorization}("");
+            require(sent, "Failed to send gas for minting");
+        }        
     }
 
     /// @dev Authorize the minting of a new token
