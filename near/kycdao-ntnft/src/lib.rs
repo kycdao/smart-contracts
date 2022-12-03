@@ -20,7 +20,7 @@ const YOCTONEAR_TO_NATIVE_DECIMALS: u8 = 24;
 const SECS_IN_YEAR: u128 = 365 * 24 * 60 * 60;
 const DEFAULT_TIER: &str = "KYC_1";
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug)]
+#[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug)]
 pub struct OldStatus {
     /// shows if the token is revoked by the issuer
     pub is_revoked: bool,
@@ -28,7 +28,7 @@ pub struct OldStatus {
     pub expiry: Option<u64>,
 }
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug)]
+#[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug)]
 pub struct Status {
     /// shows if the token owner is verified
     pub verified: bool,
@@ -161,8 +161,8 @@ impl KycdaoNTNFT {
             next_token_id: 0,
             mint_authorizer: sender.to_owned(),
             authorized_token_metadata: LookupMap::new(StorageKey::AuthorizedTokenMetadata),
-            authorized_statuses: UnorderedMap::new(StorageKey::AuthorizedStatuses),
-            token_statuses: UnorderedMap::new(StorageKey::TokenStatuses),
+            authorized_statuses: UnorderedMap::new(StorageKey::AuthorizedStatusesV0_4_0),
+            token_statuses: UnorderedMap::new(StorageKey::TokenStatusesV0_4_0),
             subscription_cost_per_year: 5 * u32::pow(10, SUBSCRIPTION_COST_DECIMALS as u32),
             authorized_seconds_to_pay: UnorderedMap::new(StorageKey::AuthorizedSecondsToPay),
             authorized_tiers: UnorderedMap::new(StorageKey::AuthorizedTiers),
@@ -180,18 +180,24 @@ impl KycdaoNTNFT {
 
         log!("Old state read successfully");
 
-        let mut new_authorized_statuses = UnorderedMap::new(StorageKey::AuthorizedStatuses);
+        let mut new_authorized_statuses = UnorderedMap::new(StorageKey::AuthorizedStatusesV0_4_0);
+        //log!("Old auth statuses: {}", old_state.authorized_statuses.len());
         for (key, old_status) in old_state.authorized_statuses.iter() {
+            //log!("Migrating old auth status: {:?} - {:?}", key, old_status);
             let new_status = Status {
                 verified: !old_status.is_revoked,
                 expiry: old_status.expiry,
             };
+            //log!("New status will be: {:?}", new_status);
             new_authorized_statuses.insert(&key, &new_status);
+            //log!("New status inserted with key: {:?}", key);
         }
+        log!("Migrated {} auth statuses!", new_authorized_statuses.len());
 
         log!("Migrated authorized_statuses");
 
-        let mut new_token_statuses = UnorderedMap::new(StorageKey::TokenStatuses);
+        let mut new_token_statuses = UnorderedMap::new(StorageKey::TokenStatusesV0_4_0);
+        //log!("Old statuses: {}", old_state.token_statuses.len());
         for (key, old_status) in old_state.token_statuses.iter() {
             //log!("Migrating old token status: {:?}: {:?}", key, old_status);
             let new_status = Status {
@@ -200,6 +206,7 @@ impl KycdaoNTNFT {
             };
             new_token_statuses.insert(&key, &new_status);
         }
+        log!("Migrated {} auth statuses!", new_token_statuses.len());
 
         log!("Migrated token_statuses");
 
