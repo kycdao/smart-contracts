@@ -104,8 +104,12 @@ enum StorageKey {
     TokenMetadata,
     Enumeration,
     AuthorizedTokenMetadata,
+    #[allow(dead_code)]
     AuthorizedStatuses,
+    AuthorizedStatusesV0_4_0,
+    #[allow(dead_code)]
     TokenStatuses,
+    TokenStatusesV0_4_0,
     AuthorizedSecondsToPay,
     AuthorizedTiers,
     TokenTiers,
@@ -153,8 +157,8 @@ impl KycdaoNTNFT {
             next_token_id: 0,
             mint_authorizer: sender.to_owned(),
             authorized_token_metadata: LookupMap::new(StorageKey::AuthorizedTokenMetadata),
-            authorized_statuses: UnorderedMap::new(StorageKey::AuthorizedStatuses),
-            token_statuses: UnorderedMap::new(StorageKey::TokenStatuses),
+            authorized_statuses: UnorderedMap::new(StorageKey::AuthorizedStatusesV0_4_0),
+            token_statuses: UnorderedMap::new(StorageKey::TokenStatusesV0_4_0),
             subscription_cost_per_year: 5 * u32::pow(10, SUBSCRIPTION_COST_DECIMALS as u32),
             authorized_seconds_to_pay: UnorderedMap::new(StorageKey::AuthorizedSecondsToPay),
             authorized_tiers: UnorderedMap::new(StorageKey::AuthorizedTiers),
@@ -168,7 +172,7 @@ impl KycdaoNTNFT {
     pub fn migrate() -> Self {
         let old_state: OldKycdaoNTNFT = env::state_read().expect("failed");
 
-        let mut new_authorized_statuses = UnorderedMap::new(StorageKey::AuthorizedStatuses);
+        let mut new_authorized_statuses = UnorderedMap::new(StorageKey::AuthorizedStatusesV0_4_0);
         for (key, old_status) in old_state.authorized_statuses.iter() {
             let new_status = Status {
                 verified: !old_status.is_revoked,
@@ -177,7 +181,7 @@ impl KycdaoNTNFT {
             new_authorized_statuses.insert(&key, &new_status);
         }
 
-        let mut new_token_statuses = UnorderedMap::new(StorageKey::TokenStatuses);
+        let mut new_token_statuses = UnorderedMap::new(StorageKey::TokenStatusesV0_4_0);
         for (key, old_status) in old_state.token_statuses.iter() {
             let new_status = Status {
                 verified: !old_status.is_revoked,

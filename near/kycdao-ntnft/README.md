@@ -66,3 +66,6 @@ pub fn migrate() -> Self {
 `near call deploytest.kycdao.testnet migrate "{}" --accountId deploytest.kycdao.testnet`
 
 After a successful migration, you can remove the `migrate` function and the old state struct, and redeploy the contract again without them.
+
+## Checking contract version
+`near view deploytest.kycdao.testnet version`
