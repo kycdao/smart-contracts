@@ -15,18 +15,20 @@ To ensure all the TypeScript type files are available to tasks and tests, compil
 
 ## Testing
 
-Tests are split into simple unit tests and a slightly more extensive set of tests which run a local chain and also spin up a demo Gas Station Network (GSN) for testing GSN transactions as well.
+Tests are split into simple unit tests and tests which run a local chain and also spin up a demo Gas Station Network (GSN) for testing GSN transactions as well.
 
 To execute unit tests:
 `npm run test`
 
-To execute all tests, incl. GSN:
-`npm run testLocal`
+To execute GSN tests:
+`npm run testGsn`
 
 There is a separate hardhat task which uses OpenZeppelin's Upgrades Plugin to confirm a contract's code is 'upgrade compatible'. It does this by using the plugin to deploy the contract to a local node, i.e. **it expects a local node to be running already.**
 
 Run it with:
 `npx hardhat testUpgrade --contract CONTRACT_NAME --network localhost`
+
+There are now tests explicitly dedicated to ensure upgrades run correctly (i.e. [KycdaoNTNFT_upgrade.ts](./test/KycdaoNTNFT_upgrade.ts)). These tests start with the 'old' version of the contract, run some test mints, upgrade to the latest version of the contract, then proceed to run the full test suite.
 
 ## Config
 The hardhat config file `hardhat.config.ts` lists most config (which is loaded whenever a hardhat task is run). It includes all the network details. You can specify private keys as strings under `accounts` or create a `mnemonic.txt` with a seed (and also a `test_mnemonic.txt` for the test networks).
@@ -69,9 +71,11 @@ For most networks, automatic gas cost calculation is fine (i.e. you can do nothi
 Feel free to add any other networks to this array if you are having trouble with gas costs during deployment.
 
 ## Deploying upgrades
-Upgrades of existing contracts using proxies can be done with the [`upgrade`](./tasks/upgrade.ts)
+Upgrades of existing contracts using proxies can be done with the [`upgrade`](./tasks/upgrade.ts) task.
 
 Example: `npx hardhat upgrade --contract KycdaoNTNFT --proxy-address "0xd9b477cD1a8f8942Aa1054aF1910f0A8cC824694" --network mumbai`
+
+**NOTE:** The `upgrade` task now expects a `_migrate` function to be present on the contract, which checks the current `storageVersion` and compares to the version returned by `version()` to see what migration needs to take place for stored variables from one version to another. The `_migrate` function is then run at the time of running the upgrade.
 
 ## Verify source code on Etherscan / Polygonscan e.t.c.
 Verifying contract source should mostly be handled by the hardhat tasks mentioned above. If it fails for some reason you can run it with:

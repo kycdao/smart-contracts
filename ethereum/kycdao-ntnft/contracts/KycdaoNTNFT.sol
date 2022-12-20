@@ -76,6 +76,10 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     mapping(bytes32 => string) private authorizedTiers;
     mapping(uint256 => string) private tokenTiers;
 
+    /*****************
+    START Version 0.4.1 VARIABLE DECLARATION
+    *****************/
+
     string public storageVersion;   // Used to represent the version of the stored variables. Used for migration purposes.
     string public constant DEFAULT_TIER = "KYC_1";  // Default tier for all mints in an older version
 
@@ -88,7 +92,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
     /// @dev Current version of this smart contract
     function version() public pure returns (string memory) {
-        return "0.4.0";
+        return "0.4.1";
     }
 
     /// @dev This implementation contract shouldn't be initialized directly
@@ -499,11 +503,11 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     function _migrate() public onlyOwner {
         if (keccak256(bytes(version())) == keccak256(bytes(storageVersion))) {
             return;
-        // Versions < 0.4.0 had no storage version
+        // Versions < 0.4.1 had no storage version
         } else if (bytes(storageVersion).length == 0) {
             for(uint i = 1; i <= totalSupply(); i++) {
-                tokenStatuses[i].verified = !tokenStatuses[i].verified;     // Invert verified as it was previously 'revoked'
-                tokenTiers[i] = DEFAULT_TIER;                               // Use default tier
+                tokenStatuses[i].verified = true;     // Set verified to true, as it was previously 'revoked'
+                tokenTiers[i] = DEFAULT_TIER;         // Use default tier
             }
             storageVersion = version();
             emit StorageVersionUpdated(storageVersion);

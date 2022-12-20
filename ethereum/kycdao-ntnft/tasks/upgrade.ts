@@ -22,9 +22,11 @@ task("upgrade", "Upgrades the impl for a proxy contract to a network")
         const deployedLogicAddr = await deployLogic(hre, contract)
 
         // Update proxy to new implementation
+        // TODO: '_migrate' doesn't exist on accreditation yet, we either add it or check here if it exists
+        const migrateCall = logicContract.interface.encodeFunctionData('_migrate')
         const proxyContract = logicContract.attach(proxyAddress)
         await setGasPriceIfReq(hre)
-        await proxyContract.upgradeTo(deployedLogicAddr)
+        await proxyContract.upgradeToAndCall(deployedLogicAddr, migrateCall)
 
         console.log('Upgrade complete!')
 });
