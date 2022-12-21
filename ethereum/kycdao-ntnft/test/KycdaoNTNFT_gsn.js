@@ -17,6 +17,7 @@ const { BigNumber } = require('ethers')
 use(solidity)
 
 const initPriceFeedValChainlink = BigNumber.from(1 * 10 ** 8)
+const SECS_IN_YEAR = 365 * 24 * 60 * 60
 // No enums in js
 const PriceFeedType =
 { 
@@ -95,24 +96,24 @@ describe.only('KycdaoNtnft Membership with GSN', function () {
     describe('mint using GSN', function () {
         it('Allows minting from an address with no eth when payment is skipped', async function () {
             expect(await ethers.provider.getBalance(gsnAcct.address)).to.equal(0)
-            await memberNftAsMinter.authorizeMinting(456, gsnAcct.address, "ABC123", "uid1234", expiration, true)
-            await memberNftAsGSN.mint(456)
+            await memberNftAsMinter.authorizeMintWithCode(456, gsnAcct.address, "ABC123", expiration, 0, "one")
+            await memberNftAsGSN.mintWithCode(456)
             expect(await memberNft.balanceOf(gsnAcct.address)).to.equal(1)
             expect(await memberNft.tokenURI(1), "metadataURI/ABC123")
         })
 
         it('Fails minting when payment is required via GSN', async function () {
             expect(await ethers.provider.getBalance(gsnAcct.address)).to.equal(0)
-            const expectedMintCost = await memberNft.getMintPriceNative()
+            const expectedMintCost = await memberNft.getRequiredMintCostForSeconds(SECS_IN_YEAR)
             await deployer.sendTransaction({
                 to: gsnAcct.address,
                 value: expectedMintCost
             })
             expect(await ethers.provider.getBalance(gsnAcct.address)).to.equal(expectedMintCost)
-            await memberNftAsMinter.authorizeMinting(456, gsnAcct.address, "ABC123", "uid1234", expiration, false)
+            await memberNftAsMinter.authorizeMintWithCode(456, gsnAcct.address, "ABC123", expiration, SECS_IN_YEAR, "one")
 
             // GSN thinks this won't revert so we need special handling to detect this tx failure
-            const tx = await memberNftAsGSN.mint(456, {value: expectedMintCost})
+            const tx = await memberNftAsGSN.mintWithCode(456, {value: expectedMintCost})
             try {
                 await tx.wait()
                 assert.fail("Transaction should have errored")

@@ -5,6 +5,7 @@ import { use, expect } from 'chai'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 import { KycdaoNTNFT } from '../src/types/contracts/KycdaoNTNFT'
+import { KycdaoNTNFTOld } from '../src/types/contracts/versions/KycdaoNTNFTOld'
 import { ProxyUUPS } from '../src/types/contracts/ProxyUUPS'
 import { PriceFeed } from '../src/types/contracts/PriceFeed'
 import { TestChainlinkPriceFeed } from '../src/types/contracts/test/TestChainlinkPriceFeed'
@@ -38,14 +39,14 @@ const testInitArgs = {
 
 const testMetaUID = 'ABC123'
 const testVerifUID = 'uid1234'
-const testTier = 'one'
+const testTier = 'KYC_1'
 
 async function blockTime() {
   const block = await ethers.provider.getBlock('latest')
   return block.timestamp
 }
 
-describe.only('KycdaoNtnft Membership', function () {
+describe.only('KycdaoNtnft Membership for an upgraded contract', function () {
   let memberNftAsDeployer: KycdaoNTNFT
   let memberNftAsOwner: KycdaoNTNFT
   let memberNftAsMinter: KycdaoNTNFT
@@ -57,6 +58,7 @@ describe.only('KycdaoNtnft Membership', function () {
   let anyone: SignerWithAddress
   let receiver: SignerWithAddress
 
+  let KycdaoNTNFTOldAbstract: ContractFactory
   let KycdaoNTNFTAbstract: ContractFactory
   let ProxyAbstract: ContractFactory
   let PriceFeedAbstract: ContractFactory
@@ -74,6 +76,20 @@ describe.only('KycdaoNtnft Membership', function () {
   let KycdaoNTNFTDeployed: KycdaoNTNFT
   let KycdaoNTNFTAtProxy: KycdaoNTNFT
 
+  async function createTestMints(KycdaoNTNFTOldAtProxy: KycdaoNTNFTOld) {
+    const kycdaoOldAsReceiver = await KycdaoNTNFTOldAtProxy.connect(receiver) as KycdaoNTNFTOld
+    const kycdaoOldAsMinter = await KycdaoNTNFTOldAtProxy.connect(minter) as KycdaoNTNFTOld
+
+    await deployer.sendTransaction({
+      to: receiver.address,
+      value: ethers.utils.parseEther("50.0")
+    })
+
+    await kycdaoOldAsMinter.authorizeMinting(111, receiver.address, 'metadataCID_1', 'verificationPath_1', expiration, true)
+    await kycdaoOldAsReceiver.mint(111)
+    await kycdaoOldAsMinter.authorizeMinting(222, anyone.address, 'metadataCID_2', 'verificationPath_2', expiration, true)
+  }
+
   let oneYearCostInWei = async function(priceFeedDecimals: BigNumber, initPriceFeedVal: BigNumber) {
     const decimalConvert = BigNumber.from(10).pow(BigNumber.from(priceFeedDecimals).add(WEI_DECIMALS).sub(subDecimals))
     return usdSubCost.mul(decimalConvert).div(initPriceFeedVal)
@@ -82,6 +98,7 @@ describe.only('KycdaoNtnft Membership', function () {
   this.beforeAll(async function () {
     ;[deployer, owner, minter, anyone, receiver] = await ethers.getSigners()
 
+    KycdaoNTNFTOldAbstract = await ethers.getContractFactory('KycdaoNTNFTOld')
     KycdaoNTNFTAbstract = await ethers.getContractFactory('KycdaoNTNFT')
     ProxyAbstract = await ethers.getContractFactory('ProxyUUPS')
     PriceFeedAbstract = await ethers.getContractFactory('PriceFeed')
@@ -96,31 +113,79 @@ describe.only('KycdaoNtnft Membership', function () {
     const PriceFeedDeployed = await PriceFeedAbstract.deploy(ChainlinkPriceFeedDeployed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
     await PriceFeedDeployed.deployed()
 
-    KycdaoNTNFTDeployed = await KycdaoNTNFTAbstract.deploy() as KycdaoNTNFT
-    await KycdaoNTNFTDeployed.deployed()
+    // Deploy the old version of the contract first
+    const KycdaoNTNFTOldDeployed = await KycdaoNTNFTOldAbstract.deploy() as KycdaoNTNFTOld
+    await KycdaoNTNFTOldDeployed.deployed()
+
     //TODO: We should deploy the proxy via xdeploy to test this properly,
     //      but the Create2DeployerLocal.sol is failing at the moment
     proxyDeployed = await ProxyAbstract.deploy() as ProxyUUPS
     await proxyDeployed.deployed()
-    const testArgs = [testInitArgs.name, testInitArgs.symbol, testInitArgs.baseURI, PriceFeedDeployed.address]
-    initData = KycdaoNTNFTAbstract.interface.encodeFunctionData('initialize', testArgs)
-    await proxyDeployed.initProxy(KycdaoNTNFTDeployed.address, initData)
+    const testArgs = [testInitArgs.name, testInitArgs.symbol, testInitArgs.baseURI, 'testVerifURI', PriceFeedDeployed.address]
+    initData = KycdaoNTNFTOldAbstract.interface.encodeFunctionData('initialize', testArgs)
+    await proxyDeployed.initProxy(KycdaoNTNFTOldDeployed.address, initData)
+
+    const KycdaoNTNFTOldAtProxy = KycdaoNTNFTOldAbstract.attach(proxyDeployed.address) as KycdaoNTNFTOld
+    const kycOldDeployer = KycdaoNTNFTOldAtProxy.connect(deployer)
+    const kycOldOwner = KycdaoNTNFTOldAtProxy.connect(owner)
+
+    const currBlockTime = await blockTime()
+    expiration = currBlockTime + SECS_IN_YEAR    
+    await kycOldDeployer.grantRole(minterRole, minter.address)
+    await kycOldDeployer.grantRole(ownerRole, owner.address)
+
+    // Run some test mints
+    await createTestMints(KycdaoNTNFTOldAtProxy)
+
+    // Upgrade contract to latest version
+    KycdaoNTNFTDeployed = await KycdaoNTNFTAbstract.deploy() as KycdaoNTNFT
+    await KycdaoNTNFTDeployed.deployed()
+    const migrateCall = KycdaoNTNFTAbstract.interface.encodeFunctionData('_migrate')
     KycdaoNTNFTAtProxy = KycdaoNTNFTAbstract.attach(proxyDeployed.address) as KycdaoNTNFT
+    expect(await kycOldOwner.upgradeToAndCall(KycdaoNTNFTDeployed.address, migrateCall)).to.emit(KycdaoNTNFTAtProxy, 'StorageVersionUpdated').withArgs(expectedVersion)
+
     memberNftAsDeployer = await KycdaoNTNFTAtProxy.connect(deployer)
     memberNftAsOwner = await KycdaoNTNFTAtProxy.connect(owner)
     memberNftAsMinter = await KycdaoNTNFTAtProxy.connect(minter)
     memberNftAsAnyone = await KycdaoNTNFTAtProxy.connect(anyone)
 
-    await memberNftAsDeployer.grantRole(minterRole, minter.address)
-    await memberNftAsDeployer.grantRole(ownerRole, owner.address)
-
-    const currBlockTime = await blockTime()
-    expiration = currBlockTime + SECS_IN_YEAR
-
     const [_, priceFeedDecimals] = await PriceFeedDeployed.lastPrice()
     usdSubCost = await memberNftAsAnyone.getSubscriptionCostPerYearUSD()
     subDecimals = await memberNftAsAnyone.SUBSCRIPTION_COST_DECIMALS()    
     expectedMintCostOneYear = await oneYearCostInWei(BigNumber.from(priceFeedDecimals), initPriceFeedValChainlink)
+  })
+
+  describe('check storage from old contract version', function () {
+    describe('already minted tokens', function () {
+      it('should have the correct status and metadata', async function () {
+        expect(await memberNftAsAnyone.hasValidToken(receiver.address)).to.equal(true)
+        const tokenId = await memberNftAsAnyone.tokenOfOwnerByIndex(receiver.address, 0)
+        expect(await memberNftAsAnyone.tokenTier(tokenId)).to.equal(testTier)
+        expect(await memberNftAsAnyone.tokenURI(tokenId)).to.equal(testInitArgs.baseURI + 'metadataCID_1')
+        expect(await memberNftAsAnyone.tokenExpiry(tokenId)).to.equal(expiration)
+      })
+    })
+    
+    describe('outstanding auths', function () {
+      it('should allow minting', async function () {
+        await memberNftAsAnyone.mintWithCode(222)
+        expect(await memberNftAsAnyone.hasValidToken(anyone.address)).to.equal(true)
+        const tokenId = await memberNftAsAnyone.tokenOfOwnerByIndex(anyone.address, 0)
+        expect(await memberNftAsAnyone.tokenTier(tokenId)).to.equal(testTier)
+        expect(await memberNftAsAnyone.tokenURI(tokenId)).to.equal(testInitArgs.baseURI + 'metadataCID_2')
+        expect(await memberNftAsAnyone.tokenExpiry(tokenId)).to.equal(expiration)        
+      })      
+    })
+  })
+
+  describe('check migrate function', function () {
+    it('should fail if not called by owner', async function () {
+      await expect(memberNftAsAnyone._migrate()).to.be.revertedWith('!owner')
+    })
+
+    it('should not emit an event if the version is unchanged', async function () {
+      await expect(memberNftAsOwner._migrate()).to.not.emit(memberNftAsOwner, 'StorageVersionUpdated')
+    })
   })
 
   describe('check version', function () {
@@ -241,15 +306,17 @@ describe.only('KycdaoNtnft Membership', function () {
       })
 
       it('Updates total supply ', async function () {
+        const origTotalSupply = await memberNftAsAnyone.totalSupply()
         await memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
         await memberNftAsAnyone.mintWithCode(456, {value: expectedMintCostOneYear})
-        expect(await memberNftAsAnyone.totalSupply()).to.equal(1)
+        expect(await memberNftAsAnyone.totalSupply()).to.equal(origTotalSupply.add(1))
       })
 
       it('Allows enumeration ', async function () {
+        const origTotalSupply = await memberNftAsAnyone.totalSupply()
         await memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
         await memberNftAsAnyone.mintWithCode(456, {value: expectedMintCostOneYear})
-        expect(await memberNftAsAnyone.tokenOfOwnerByIndex(anyone.address, 0)).to.equal(1)
+        expect(await memberNftAsAnyone.tokenOfOwnerByIndex(anyone.address, 0)).to.equal(origTotalSupply.add(1))
         expect(await memberNftAsAnyone.tokenByIndex(0)).to.equal(1)
       })
 
@@ -308,7 +375,8 @@ describe.only('KycdaoNtnft Membership', function () {
       it('Does not allow tokens to be transferred', async function () {
         await memberNftAsMinter.authorizeMintWithCode(123, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
         await memberNftAsAnyone.mintWithCode(123, {value: expectedMintCostOneYear})
-        await expect(memberNftAsAnyone.transferFrom(anyone.address, receiver.address, 1)).to.be.revertedWith('Not transferable!')
+        const tokenId = await memberNftAsAnyone.tokenOfOwnerByIndex(anyone.address, 0)
+        await expect(memberNftAsAnyone.transferFrom(anyone.address, receiver.address, tokenId)).to.be.revertedWith('Not transferable!')
       })
     })
 
@@ -414,7 +482,8 @@ describe.only('KycdaoNtnft Membership', function () {
       it('returns the expected tokenURI', async function () {
         await memberNftAsMinter.authorizeMintWithCode(123, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
         await memberNftAsAnyone.mintWithCode(123, {value: expectedMintCostOneYear})
-        expect(await memberNftAsAnyone.tokenURI(1)).to.equal(testInitArgs.baseURI + testMetaUID)
+        const tokenId = await memberNftAsAnyone.tokenOfOwnerByIndex(anyone.address, 0)
+        expect(await memberNftAsAnyone.tokenURI(tokenId)).to.equal(testInitArgs.baseURI + testMetaUID)
       })
       
       it('requires the owner to set the base metadata URI', async function () {
@@ -425,11 +494,12 @@ describe.only('KycdaoNtnft Membership', function () {
         await memberNftAsMinter.authorizeMintWithCode(123, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
         await memberNftAsAnyone.mintWithCode(123, {value: expectedMintCostOneYear})
         await memberNftAsOwner.setMetadataBaseURI("newURI")
-        expect(await memberNftAsAnyone.tokenURI(1)).to.equal("newURI" + testMetaUID)
+        const tokenId = await memberNftAsAnyone.tokenOfOwnerByIndex(anyone.address, 0)
+        expect(await memberNftAsAnyone.tokenURI(tokenId)).to.equal("newURI" + testMetaUID)
       })
 
       it('fails when called with a non-existant tokenId', async function () {
-        await expect(memberNftAsAnyone.tokenURI(1)).to.be.revertedWith('!tokenExists')
+        await expect(memberNftAsAnyone.tokenURI(10)).to.be.revertedWith('!tokenExists')
       })
     })
   })
@@ -447,7 +517,6 @@ describe.only('KycdaoNtnft Membership', function () {
         expect(await memberNftAsAnyone.hasValidToken(anyone.address)).to.equal(false)
         await memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
         await memberNftAsAnyone.mintWithCode(456, {value: expectedMintCostOneYear})
-        const tokenId = await memberNftAsAnyone.tokenOfOwnerByIndex(anyone.address, 0)
         expect(await memberNftAsAnyone.hasValidToken(anyone.address)).to.equal(true)
       })
 
@@ -461,7 +530,7 @@ describe.only('KycdaoNtnft Membership', function () {
 
     describe('checking status for NON existing token', function () {
       it('Expiry reverts with error', async function () {
-        await expect(memberNftAsAnyone.tokenExpiry(1)).to.be.revertedWith('!tokenExists')
+        await expect(memberNftAsAnyone.tokenExpiry(10)).to.be.revertedWith('!tokenExists')
       })
 
       it('Has valid NFT returns false', async function () {
@@ -474,21 +543,23 @@ describe.only('KycdaoNtnft Membership', function () {
     it('requires the minter to update the expiry', async function () {
       await memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
       await memberNftAsAnyone.mintWithCode(456, {value: expectedMintCostOneYear})
-      await expect(memberNftAsAnyone.updateExpiry(1, 123)).to.be.revertedWith('!minter')
+      const tokenId = await memberNftAsAnyone.tokenOfOwnerByIndex(anyone.address, 0)
+      await expect(memberNftAsAnyone.updateExpiry(tokenId, 123)).to.be.revertedWith('!minter')
     })
 
     it('requires the minter to update the revoked status', async function () {
       await memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
       await memberNftAsAnyone.mintWithCode(456, {value: expectedMintCostOneYear})
-      await expect(memberNftAsAnyone.setVerifiedToken(1, false)).to.be.revertedWith('!minter')
+      const tokenId = await memberNftAsAnyone.tokenOfOwnerByIndex(anyone.address, 0)
+      await expect(memberNftAsAnyone.setVerifiedToken(tokenId, false)).to.be.revertedWith('!minter')
     })
 
     it('fails to update expiry with a non-existant tokenId', async function () {
-      await expect(memberNftAsMinter.updateExpiry(1, 123)).to.be.revertedWith('!tokenExists')
+      await expect(memberNftAsMinter.updateExpiry(10, 123)).to.be.revertedWith('!tokenExists')
     })
 
     it('fails to update revoked status with a non-existant tokenId', async function () {
-      await expect(memberNftAsMinter.setVerifiedToken(1, false)).to.be.revertedWith('!tokenExists')
+      await expect(memberNftAsMinter.setVerifiedToken(10, false)).to.be.revertedWith('!tokenExists')
     })
 
     it('To new expiry, updates expiry', async function () {

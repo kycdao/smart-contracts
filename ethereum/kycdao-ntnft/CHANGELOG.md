@@ -8,6 +8,29 @@ NOTE: This CHANGELOG tracks changes to both contracts covered by kycDAO: **kycDA
 
 ## [Unreleased]
 
+## kycDAONTNFT [0.4.1] - 2022-12-20
+### Added
+- Added a variable `storageVersion` which records the current version of the contract's stored variables, used when running `_migrate`
+- Added a `_migrate` function which runs at the time of upgrading a contract, used to migrate stored variables from one version to another
+- Added a `_migrateAuthMaps` function which runs at the time of minting, used to migrate stored authMints from older versions
+
+## kycDAONTNFT [0.4.0] - 2022-12-02
+### Added
+- Major change to payment handling, with mint cost now being based on amount of subscription time in seconds
+- Verification tiers are now part of the mint, however they are not used for now
+- A utility function `getRequiredMintCostForCode` can be used to get the mint cost for an auth code
+- Another utility function `getRequiredMintCostForSeconds` can be used to get the subscription price based on seconds
+### Changed
+- `authorizeMint` renamed to `authorizeMintWithCode` to differentiate it from upcoming mint with signature handling
+- Similarly `mint` has been renamed to `mintWithCode`
+- Due to change of payment based on subscription, `authorizeMintWithCode` now takes seconds required to be paid for on mint
+- Most checks now done via modifiers
+- `isRevoked` now renamed to `verified`, which means its meaning is now inverted
+- Any `mintCost` reference is now a `subscriptionCost`
+### Removed
+- Any use of the verificationURI is now removed, from auth, mint and initialize
+- Any use of the skipPayment maps is now removed, from auth and mint
+
 ## kycDAONTNFT [0.3.2] - 2022-11-15
 ### Removed
 - Removed 'initializeStd' function

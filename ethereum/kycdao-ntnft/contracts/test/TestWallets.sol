@@ -2,23 +2,19 @@
 
 pragma solidity ^0.8.9;
 
+import "../interfaces/IKycdaoNTNFT.sol";
+
 // These wallets are used to test sending KYC NFTs to an address
 // that is a contract
 
-interface IKYCNFT {
-    function mint(uint32 _auth_code) external payable;
-    function authorizeMinting(uint32 _auth_code, address _dst, string memory _metadata_cid, string memory _verification_path, 
-        uint _expiry, bool _skipPayment) external;    
-}
-
 contract KYCTestWallet {
-    IKYCNFT kyc;
+    IKycdaoNTNFT kyc;
     uint32 auth_code;
 
-    function mint(IKYCNFT _kyc, uint32 _auth_code) external payable {
+    function mint(IKycdaoNTNFT _kyc, uint32 _auth_code) external payable {
         kyc = _kyc;
         auth_code = _auth_code;
-        _kyc.mint{value: msg.value}(_auth_code);
+        _kyc.mintWithCode{value: msg.value}(_auth_code);
     }
 
     function prepareAuthMint(uint32 _auth_code) external {
@@ -80,7 +76,7 @@ contract RevertReceiveTestWallet is KYCTestWallet {
 // This wallet is a simple contract that attempts to reenter the contract from the receive function
 contract ReenterReceiveTestWallet is KYCTestWallet {
     receive() external payable {
-        kyc.mint{value: msg.value}(auth_code);
+        kyc.mintWithCode{value: msg.value}(auth_code);
     }
 
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
@@ -91,14 +87,14 @@ contract ReenterReceiveTestWallet is KYCTestWallet {
 // This wallet is a simple contract that attempts to reenter the contract from the onERC721Received function
 contract ReenterTestWallet is KYCTestWallet {
     function onERC721Received(address, address, uint256, bytes calldata) external returns (bytes4) {
-        kyc.mint(auth_code);
+        kyc.mintWithCode(auth_code);
         return this.onERC721Received.selector;
     }    
 }
 
-// This wallet is a simple contract that attempts to reenter the contract from via authorizeMinting
+// This wallet is a simple contract that attempts to reenter the contract via authorizeMinting
 contract ReenterAuthorizeTestWallet is KYCTestWallet {
     receive() external payable {
-        kyc.authorizeMinting(auth_code, address(this), "", "", 0, true);
+        kyc.authorizeMintWithCode(auth_code, address(this), "", 0, 0, "");
     }    
 }
