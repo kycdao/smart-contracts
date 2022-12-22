@@ -109,14 +109,14 @@ enum StorageKey {
     Enumeration,
     AuthorizedTokenMetadata,
     #[allow(dead_code)]
-    AuthorizedStatuses,
+    AuthorizedStatusesV0_3_2,
     #[allow(dead_code)]
-    TokenStatuses,
+    TokenStatusesV0_3_2,
     AuthorizedSecondsToPay,
     AuthorizedTiers,
     TokenTiers,
-    AuthorizedStatusesV0_4_0,
-    TokenStatusesV0_4_0,
+    AuthorizedStatuses,
+    TokenStatuses,
 }
 
 #[near_bindgen]
@@ -161,8 +161,8 @@ impl KycdaoNTNFT {
             next_token_id: 0,
             mint_authorizer: sender.to_owned(),
             authorized_token_metadata: LookupMap::new(StorageKey::AuthorizedTokenMetadata),
-            authorized_statuses: UnorderedMap::new(StorageKey::AuthorizedStatusesV0_4_0),
-            token_statuses: UnorderedMap::new(StorageKey::TokenStatusesV0_4_0),
+            authorized_statuses: UnorderedMap::new(StorageKey::AuthorizedStatuses),
+            token_statuses: UnorderedMap::new(StorageKey::TokenStatuses),
             subscription_cost_per_year: 5 * u32::pow(10, SUBSCRIPTION_COST_DECIMALS as u32),
             authorized_seconds_to_pay: UnorderedMap::new(StorageKey::AuthorizedSecondsToPay),
             authorized_tiers: UnorderedMap::new(StorageKey::AuthorizedTiers),
@@ -180,7 +180,7 @@ impl KycdaoNTNFT {
 
         log!("Old state read successfully");
 
-        let mut new_authorized_statuses = UnorderedMap::new(StorageKey::AuthorizedStatusesV0_4_0);
+        let mut new_authorized_statuses = UnorderedMap::new(StorageKey::AuthorizedStatuses);
         for (key, old_status) in old_state.authorized_statuses.iter() {
             let new_status = Status {
                 verified: !old_status.is_revoked,
@@ -191,7 +191,7 @@ impl KycdaoNTNFT {
 
         log!("Migrated authorized_statuses");
 
-        let mut new_token_statuses = UnorderedMap::new(StorageKey::TokenStatusesV0_4_0);
+        let mut new_token_statuses = UnorderedMap::new(StorageKey::TokenStatuses);
         for (key, old_status) in old_state.token_statuses.iter() {
             //log!("Migrating old token status: {:?}: {:?}", key, old_status);
             let new_status = Status {
