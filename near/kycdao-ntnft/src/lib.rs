@@ -18,6 +18,7 @@ type MintAuthorizationCode = u32;
 pub const SUBSCRIPTION_COST_DECIMALS: u8 = 8;
 const YOCTONEAR_TO_NATIVE_DECIMALS: u8 = 24;
 const SECS_IN_YEAR: u128 = 365 * 24 * 60 * 60;
+const DEFAULT_TIER: &str = "KYC_1";
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug)]
 pub struct OldStatus {
@@ -253,7 +254,7 @@ impl KycdaoNTNFT {
         // Get prefilled metadata, also remove digest so it cannot be used again
         let metadata = self.authorized_token_metadata.remove(&digest).expect("Unauthorized code");
         let status = self.authorized_statuses.remove(&digest).unwrap_or_default();
-        let tier = self.authorized_tiers.remove(&digest).unwrap_or("".to_string());
+        let tier = self.authorized_tiers.remove(&digest).unwrap_or(DEFAULT_TIER.to_string());
         let seconds_to_pay = self.authorized_seconds_to_pay.remove(&digest).unwrap_or(0);
 
         let cost = self.get_required_mint_cost_for_seconds_internal(seconds_to_pay);
@@ -330,17 +331,20 @@ impl KycdaoNTNFT {
 
     /// Check the expiry of the token - None means it never expires
     pub fn token_expiry(&self, token_id: TokenId) -> Option<u64> {
+        self.tokens.owner_by_id.get(&token_id).expect("Token not found");
         self.token_statuses.get(&token_id).unwrap_or_default().expiry
     }
 
     /// Check if the token is revoked
     /*pub fn token_is_revoked(&self, token_id: TokenId) -> bool {
+        self.tokens.owner_by_id.get(&token_id).expect("Token not found");
         self.token_statuses.get(&token_id).unwrap_or_default().is_revoked
     }*/
 
     /// Get the verification tier of a specific token
     pub fn token_tier(&self, token_id: TokenId) -> String {
-        self.token_tiers.get(&token_id).unwrap_or("".to_string())
+        self.tokens.owner_by_id.get(&token_id).expect("Token not found");
+        self.token_tiers.get(&token_id).unwrap_or(DEFAULT_TIER.to_string())
     }
 
     /// Check if an account has any valid tokens
@@ -379,6 +383,7 @@ impl KycdaoNTNFT {
     *****************/
     pub fn set_verified_token(&mut self, token_id: TokenId, verified: bool) {
         self.assert_mint_authorizer();
+        self.tokens.owner_by_id.get(&token_id).expect("Token not found");
         let mut status = self.token_statuses.get(&token_id).unwrap_or_default();
         status.verified = verified;
         self.token_statuses.insert(&token_id, &status);
@@ -386,6 +391,7 @@ impl KycdaoNTNFT {
 
     pub fn update_expiry(&mut self, token_id: TokenId, expiry: Option<u64>) {
         self.assert_mint_authorizer();
+        self.tokens.owner_by_id.get(&token_id).expect("Token not found");
         let mut status = self.token_statuses.get(&token_id).unwrap_or_default();
         status.expiry = expiry;
         self.token_statuses.insert(&token_id, &status);
@@ -543,8 +549,8 @@ mod tests {
         testing_env!(context.build());
         let mut contract = KycdaoNTNFT::new_default_meta("base".to_string());
 
-        contract.authorize_mint_with_code(123, accounts(2), sample_token_metadata("somehash".to_string()), None, 0, "KYC_1".to_string());
-        contract.authorize_mint_with_code(365, accounts(2), sample_token_metadata("othersomehash".to_string()), None, 0, "KYC_1".to_string());
+        contract.authorize_mint_with_code(123, accounts(2), sample_token_metadata("somehash".to_string()), None, 0, DEFAULT_TIER.to_string());
+        contract.authorize_mint_with_code(365, accounts(2), sample_token_metadata("othersomehash".to_string()), None, 0, DEFAULT_TIER.to_string());
 
         testing_env!(context
             .storage_usage(env::storage_usage())
@@ -597,7 +603,7 @@ mod tests {
         let mut contract = KycdaoNTNFT::new_default_meta("base3".to_string());
 
         // use default status fallback
-        contract.authorize_mint_with_code(489, accounts(3), sample_token_metadata("somehash".to_string()), None, 0, "KYC_1".to_string());
+        contract.authorize_mint_with_code(489, accounts(3), sample_token_metadata("somehash".to_string()), None, 0, DEFAULT_TIER.to_string());
 
         testing_env!(context
             .block_timestamp(1664226405)
@@ -631,7 +637,7 @@ mod tests {
         assert_eq!(contract.token_statuses.get(&token.token_id).unwrap().verified, false);
         assert_eq!(contract.has_valid_token(accounts(3)), false);
 
-        contract.authorize_mint_with_code(789, accounts(3), sample_token_metadata("other".to_string()), None, 0, "KYC_1".to_string());
+        contract.authorize_mint_with_code(789, accounts(3), sample_token_metadata("other".to_string()), None, 0, DEFAULT_TIER.to_string());
 
         testing_env!(context
             .block_timestamp(1664226405)
@@ -655,7 +661,7 @@ mod tests {
         let mut contract = KycdaoNTNFT::new_default_meta("base3".to_string());
 
         // use default status fallback
-        contract.authorize_mint_with_code(489, accounts(3), sample_token_metadata("somehash".to_string()), None, 0, "KYC_1".to_string());
+        contract.authorize_mint_with_code(489, accounts(3), sample_token_metadata("somehash".to_string()), None, 0, DEFAULT_TIER.to_string());
 
         testing_env!(context
             .block_timestamp(1664226405)
@@ -686,7 +692,7 @@ mod tests {
         let mut contract = KycdaoNTNFT::new_default_meta("base3".to_string());
 
         // use default status fallback
-        contract.authorize_mint_with_code(489, accounts(3), sample_token_metadata("somehash".to_string()), None, 0, "KYC_1".to_string());
+        contract.authorize_mint_with_code(489, accounts(3), sample_token_metadata("somehash".to_string()), None, 0, DEFAULT_TIER.to_string());
 
         testing_env!(context
             .block_timestamp(1664226405)
@@ -717,7 +723,7 @@ mod tests {
         let mut contract = KycdaoNTNFT::new_default_meta("base3".to_string());
 
         // use default status fallback
-        contract.authorize_mint_with_code(6547, accounts(4), sample_token_metadata("somehash".to_string()), Some(9000000000), 0, "KYC_1".to_string());
+        contract.authorize_mint_with_code(6547, accounts(4), sample_token_metadata("somehash".to_string()), Some(9000000000), 0, DEFAULT_TIER.to_string());
 
         testing_env!(context
             .block_timestamp(1664226405)
