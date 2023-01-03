@@ -20,15 +20,7 @@ const YOCTONEAR_TO_NATIVE_DECIMALS: u8 = 24;
 const SECS_IN_YEAR: u128 = 365 * 24 * 60 * 60;
 const DEFAULT_TIER: &str = "KYC_1";
 
-#[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug)]
-pub struct OldStatus {
-    /// shows if the token is revoked by the issuer
-    pub is_revoked: bool,
-    /// expiry timestamp
-    pub expiry: Option<u64>,
-}
-
-#[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug)]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug)]
 pub struct Status {
     /// shows if the token owner is verified
     pub verified: bool,
@@ -172,8 +164,8 @@ impl KycdaoNTNFT {
             next_token_id: 0,
             mint_authorizer: sender.to_owned(),
             authorized_token_metadata: LookupMap::new(StorageKey::AuthorizedTokenMetadata),
-            authorized_statuses: UnorderedMap::new(StorageKey::AuthorizedStatusesV0_4_0),
-            token_statuses: UnorderedMap::new(StorageKey::TokenStatusesV0_4_0),
+            authorized_statuses: UnorderedMap::new(StorageKey::AuthorizedStatuses),
+            token_statuses: UnorderedMap::new(StorageKey::TokenStatuses),
             subscription_cost_per_year: 5 * u32::pow(10, SUBSCRIPTION_COST_DECIMALS as u32),
             authorized_seconds_to_pay: UnorderedMap::new(StorageKey::AuthorizedSecondsToPay),
             authorized_tiers: UnorderedMap::new(StorageKey::AuthorizedTiers),
@@ -185,41 +177,11 @@ impl KycdaoNTNFT {
     #[private]
     #[init(ignore_state)]
     pub fn migrate() -> Self {
-        log!("Starting migration to v0.4.0...");
+        log!("Starting migration to v0.4.1...");
 
         let old_state: OldKycdaoNTNFT = env::state_read().expect("failed");
 
         log!("Old state read successfully");
-
-        let mut new_authorized_statuses = UnorderedMap::new(StorageKey::AuthorizedStatusesV0_4_0);
-        //log!("Old auth statuses: {}", old_state.authorized_statuses.len());
-        for (key, old_status) in old_state.authorized_statuses.iter() {
-            //log!("Migrating old auth status: {:?} - {:?}", key, old_status);
-            let new_status = Status {
-                verified: !old_status.is_revoked,
-                expiry: old_status.expiry,
-            };
-            //log!("New status will be: {:?}", new_status);
-            new_authorized_statuses.insert(&key, &new_status);
-            //log!("New status inserted with key: {:?}", key);
-        }
-        log!("Migrated {} auth statuses!", new_authorized_statuses.len());
-
-        log!("Migrated authorized_statuses");
-
-        let mut new_token_statuses = UnorderedMap::new(StorageKey::TokenStatusesV0_4_0);
-        //log!("Old statuses: {}", old_state.token_statuses.len());
-        for (key, old_status) in old_state.token_statuses.iter() {
-            //log!("Migrating old token status: {:?}: {:?}", key, old_status);
-            let new_status = Status {
-                verified: !old_status.is_revoked,
-                expiry: old_status.expiry,
-            };
-            new_token_statuses.insert(&key, &new_status);
-        }
-        log!("Migrated {} auth statuses!", new_token_statuses.len());
-
-        log!("Migrated token_statuses");
 
         let price_feed_addr = AccountId::from_str("price-oracle.testnet").expect("accountID should be valid");
         let native_usd_price_feed = PriceFeedMocked::new(price_feed_addr);
@@ -334,7 +296,7 @@ impl KycdaoNTNFT {
     /*****************
     Public interfaces
     *****************/
-    pub fn version(&self) -> &str { "0.4.0" }
+    pub fn version(&self) -> &str { "0.4.1" }
 
     pub fn token_uri(&self, token_id: TokenId) -> String {
         let token_metadata_store = self.tokens.token_metadata_by_id.as_ref().expect("Metadata not supported");
@@ -451,6 +413,13 @@ impl KycdaoNTNFT {
         self.native_usd_price_feed = PriceFeedMocked::new(address);
     }
 
+    /// @notice Set the last price on the price feed
+    /// @param price USD Price
+    /// @parma decimals Number of decimals
+    pub fn set_latest_price(&mut self, price: u32, decimals: u8) {
+        self.native_usd_price_feed.set_latest_price(price, decimals)
+    }
+
     /*****************
     HELPERS
     *****************/
@@ -465,7 +434,7 @@ impl KycdaoNTNFT {
 
     /// Returns the amount in NATIVE (yoctoNEAR) which is expected when minting per year of subscription
     fn get_subscription_price_per_year_native(&self) -> Balance {
-        let (price, decimals) = self.native_usd_price_feed.last_price();
+        let (price, decimals) = self.native_usd_price_feed.latest_price();
         let decimal_convert = u128::pow(10, (YOCTONEAR_TO_NATIVE_DECIMALS - SUBSCRIPTION_COST_DECIMALS + decimals) as u32);
         return (self.subscription_cost_per_year as u128 * decimal_convert) / price as u128
     }
