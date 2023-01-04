@@ -150,7 +150,7 @@ impl KycdaoNTNFT {
 
         let sender = env::signer_account_id();
 
-        let price_feed_addr = AccountId::from_str("price-oracle.testnet").expect("accountID should be valid");
+        let price_feed_addr = AccountId::from_str("priceoracle.testnet").expect("accountID should be valid");
         let native_usd_price_feed = PriceFeedMocked::new(price_feed_addr);
 
         Self {
@@ -183,7 +183,7 @@ impl KycdaoNTNFT {
 
         log!("Old state read successfully");
 
-        let price_feed_addr = AccountId::from_str("price-oracle.testnet").expect("accountID should be valid");
+        let price_feed_addr = AccountId::from_str("priceoracle.testnet").expect("accountID should be valid");
         let native_usd_price_feed = PriceFeedMocked::new(price_feed_addr);
 
         log!("Defined price feed");
@@ -358,6 +358,16 @@ impl KycdaoNTNFT {
         self.mint_authorizer.clone()
     }
 
+    /// @notice Get the price feed address used for native - USD conversions
+    pub fn get_price_feed(&self) -> AccountId {
+        self.native_usd_price_feed.price_feed_address()
+    }
+
+    /// @notice Get the last price on the price feed
+    pub fn get_latest_price(&self) -> (u32, u8) {
+        self.native_usd_price_feed.latest_price()
+    }
+
     /*****************
     Mint authorizer functions
     *****************/
@@ -406,7 +416,7 @@ impl KycdaoNTNFT {
         Promise::new(recipient).transfer(env::account_balance());
     }
 
-    /// @notice Set the price feed used for native - USD conversions
+    /// @notice Set the price feed address used for native - USD conversions
     /// @param address Address the address of the price feed
     pub fn set_price_feed(&mut self, address: AccountId) {
         self.assert_owner();
@@ -417,6 +427,7 @@ impl KycdaoNTNFT {
     /// @param price USD Price
     /// @parma decimals Number of decimals
     pub fn set_latest_price(&mut self, price: u32, decimals: u8) {
+        self.assert_owner();
         self.native_usd_price_feed.set_latest_price(price, decimals)
     }
 

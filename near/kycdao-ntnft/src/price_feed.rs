@@ -27,4 +27,8 @@ impl PriceFeedMocked {
     pub fn latest_price(&self) -> (u32, u8) {
         self.latest_price
     }
+
+    pub fn price_feed_address(&self) -> AccountId {
+        self.address.clone()
+    }
 }
