@@ -73,7 +73,7 @@ Feel free to add any other networks to this array if you are having trouble with
 ## Deploying upgrades
 Upgrades of existing contracts using proxies can be done with the [`upgrade`](./tasks/upgrade.ts) task.
 
-Example: `npx hardhat upgrade --contract KycdaoNTNFT --proxy-address "0xd9b477cD1a8f8942Aa1054aF1910f0A8cC824694" --network mumbai`
+Example: `npx hardhat upgrade --contract KycdaoNTNFT --proxy-address "<PUT PROXY ADDR HERE>" --network mumbai`
 
 **NOTE:** The `upgrade` task now expects a `_migrate` function to be present on the contract, which checks the current `storageVersion` and compares to the version returned by `version()` to see what migration needs to take place for stored variables from one version to another. The `_migrate` function is then run at the time of running the upgrade.
 
