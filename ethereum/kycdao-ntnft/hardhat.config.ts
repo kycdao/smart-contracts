@@ -106,6 +106,20 @@ const config: HardhatUserConfig = {
         mnemonic: mnemonic(),
       },
     },
+    arbitrumMain: {
+      url: 'https://arb1.arbitrum.io/rpc',
+      accounts: {
+        mnemonic: mnemonic(),
+      },
+      chainId: 42161,
+    },
+    arbitrumTestnet: {
+      url: 'https://goerli-rollup.arbitrum.io/rpc',
+      accounts: {
+        mnemonic: test_mnemonic(),
+      },
+      chainId: 421613,
+    },
   },
   typechain: {
     outDir: 'src/types',
@@ -128,7 +142,24 @@ const config: HardhatUserConfig = {
           apiURL: "https://api-alfajores.celoscan.io/api",
           browserURL: "https://alfajores.celoscan.io"
         }
-      }      
+      },
+      // hardhat-etherscan actually supports Arbitrum but xdeployer names the networks something different...
+      {
+        network: "arbitrumMain",
+        chainId: 42161,
+        urls: {
+          apiURL: "https://api.arbiscan.io/api",
+          browserURL: "https://arbiscan.io/",
+        },
+      },
+      {
+        network: "arbitrumTestnet",
+        chainId: 421613,
+        urls: {
+          apiURL: "https://api-goerli.arbiscan.io/api",
+          browserURL: "https://goerli.arbiscan.io/",
+        },
+      },            
     ],    
     // Your API key for Etherscan
     // Obtain one at https://etherscan.io/
@@ -145,6 +176,9 @@ const config: HardhatUserConfig = {
       // CELO and alfajores testnet (using celoscan) 
       celo: process.env.CELOSCAN_API_KEY || '',
       alfajores: process.env.CELOSCAN_API_KEY || '',
+      // ArbitrumOne and ArbitrumGoerli testnet (using arbiscan)
+      arbitrumMain: process.env.ARBISCAN_API_KEY || '',
+      arbitrumTestnet: process.env.ARBISCAN_API_KEY || '',
     }
   },
 }
