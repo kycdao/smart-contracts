@@ -24,14 +24,14 @@ const DEFAULT_TIER: &str = "KYC_1";
 pub struct Status {
     /// shows if the token owner is verified
     pub verified: bool,
-    /// expiry timestamp
+    /// expiry timestamp (epoch time in seconds)
     pub expiry: Option<u64>,
 }
 
 impl Status {
     pub fn is_valid(&self) -> bool {
         let expired = match self.expiry {
-            Some(exp) => exp <= block_timestamp(),
+            Some(exp) => exp * u64::pow(10, 9) <= block_timestamp(),
             None => false,
         };
         !expired && self.verified
@@ -296,7 +296,7 @@ impl KycdaoNTNFT {
     /*****************
     Public interfaces
     *****************/
-    pub fn version(&self) -> &str { "0.4.1" }
+    pub fn version(&self) -> &str { "0.4.2" }
 
     pub fn token_uri(&self, token_id: TokenId) -> String {
         let token_metadata_store = self.tokens.token_metadata_by_id.as_ref().expect("Metadata not supported");
@@ -309,17 +309,17 @@ impl KycdaoNTNFT {
         format!("{}/{}.json", base_uri, token_metadata.extra.expect("Missing token extra data"))
     }
 
-    /// Check the expiry of the token - None means it never expires
+    /// Check the validity of a specific token
+    pub fn token_is_valid(&self, token_id: TokenId) -> bool {
+        self.tokens.owner_by_id.get(&token_id).expect("Token not found");
+        self.token_statuses.get(&token_id).unwrap_or_default().is_valid()
+    }
+
+    /// Check the expiry of the token (epoch time in seconds) - None means it never expires
     pub fn token_expiry(&self, token_id: TokenId) -> Option<u64> {
         self.tokens.owner_by_id.get(&token_id).expect("Token not found");
         self.token_statuses.get(&token_id).unwrap_or_default().expiry
     }
-
-    /// Check if the token is revoked
-    /*pub fn token_is_revoked(&self, token_id: TokenId) -> bool {
-        self.tokens.owner_by_id.get(&token_id).expect("Token not found");
-        self.token_statuses.get(&token_id).unwrap_or_default().is_revoked
-    }*/
 
     /// Get the verification tier of a specific token
     pub fn token_tier(&self, token_id: TokenId) -> String {
@@ -371,6 +371,13 @@ impl KycdaoNTNFT {
     /*****************
     Mint authorizer functions
     *****************/
+    /// Check if the token is verified or not (revoked)
+    pub fn token_is_verified(&self, token_id: TokenId) -> bool {
+        self.assert_mint_authorizer();
+        self.tokens.owner_by_id.get(&token_id).expect("Token not found");
+        self.token_statuses.get(&token_id).unwrap_or_default().verified
+    }
+
     pub fn set_verified_token(&mut self, token_id: TokenId, verified: bool) {
         self.assert_mint_authorizer();
         self.tokens.owner_by_id.get(&token_id).expect("Token not found");
@@ -379,6 +386,7 @@ impl KycdaoNTNFT {
         self.token_statuses.insert(&token_id, &status);
     }
 
+    /// Update the expiry of a token - expects epoch time in seconds
     pub fn update_expiry(&mut self, token_id: TokenId, expiry: Option<u64>) {
         self.assert_mint_authorizer();
         self.tokens.owner_by_id.get(&token_id).expect("Token not found");
@@ -604,7 +612,7 @@ mod tests {
         contract.authorize_mint_with_code(489, accounts(3), sample_token_metadata("somehash".to_string()), None, 0, DEFAULT_TIER.to_string());
 
         testing_env!(context
-            .block_timestamp(1664226405)
+            .block_timestamp(1664226405000000000)
             .storage_usage(env::storage_usage())
             .attached_deposit(MINT_STORAGE_COST + MINT_COST)
             .signer_account_id(accounts(3))
@@ -638,7 +646,7 @@ mod tests {
         contract.authorize_mint_with_code(789, accounts(3), sample_token_metadata("other".to_string()), None, 0, DEFAULT_TIER.to_string());
 
         testing_env!(context
-            .block_timestamp(1664226405)
+            .block_timestamp(1664226405000000000)
             .storage_usage(env::storage_usage())
             .attached_deposit(MINT_STORAGE_COST + MINT_COST)
             .signer_account_id(accounts(3))
@@ -662,7 +670,7 @@ mod tests {
         contract.authorize_mint_with_code(489, accounts(3), sample_token_metadata("somehash".to_string()), None, 0, DEFAULT_TIER.to_string());
 
         testing_env!(context
-            .block_timestamp(1664226405)
+            .block_timestamp(1664226405000000000)
             .storage_usage(env::storage_usage())
             .attached_deposit(MINT_STORAGE_COST + MINT_COST)
             .signer_account_id(accounts(3))
@@ -672,7 +680,7 @@ mod tests {
         let token = contract.mint_with_code(489);
 
         testing_env!(context
-            .block_timestamp(1664226405)
+            .block_timestamp(1664226405000000000)
             .storage_usage(env::storage_usage())
             .attached_deposit(MINT_STORAGE_COST + MINT_COST)
             .signer_account_id(accounts(4))
@@ -693,7 +701,7 @@ mod tests {
         contract.authorize_mint_with_code(489, accounts(3), sample_token_metadata("somehash".to_string()), None, 0, DEFAULT_TIER.to_string());
 
         testing_env!(context
-            .block_timestamp(1664226405)
+            .block_timestamp(1664226405000000000)
             .storage_usage(env::storage_usage())
             .attached_deposit(MINT_STORAGE_COST + MINT_COST)
             .signer_account_id(accounts(3))
@@ -703,7 +711,7 @@ mod tests {
         let token = contract.mint_with_code(489);
 
         testing_env!(context
-            .block_timestamp(1664226405)
+            .block_timestamp(1664226405000000000)
             .storage_usage(env::storage_usage())
             .attached_deposit(MINT_STORAGE_COST + MINT_COST)
             .signer_account_id(accounts(4))
@@ -724,7 +732,7 @@ mod tests {
         contract.authorize_mint_with_code(6547, accounts(4), sample_token_metadata("somehash".to_string()), Some(9000000000), 0, DEFAULT_TIER.to_string());
 
         testing_env!(context
-            .block_timestamp(1664226405)
+            .block_timestamp(1664226405000000000)
             .storage_usage(env::storage_usage())
             .attached_deposit(MINT_STORAGE_COST + MINT_COST)
             .signer_account_id(accounts(4))
