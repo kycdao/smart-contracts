@@ -22,5 +22,13 @@ module.exports = {
     goerli: {
         priceFeedType: 'CHAINLINK',
         address: '0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e'
-    }    
+    },
+    arbitrumMain: {
+        priceFeedType: 'CHAINLINK',
+        address: '0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612'
+    },
+    arbitrumTestnet: {
+        priceFeedType: 'CHAINLINK',
+        address: '0x62CAe0FA2da220f43a51F86Db2EDb36DcA9A5A08'
+    }            
 }
