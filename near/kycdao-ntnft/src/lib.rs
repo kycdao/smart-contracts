@@ -623,24 +623,28 @@ mod tests {
 
         assert_eq!(contract.token_expiry(token.token_id.clone()), None);
         assert_eq!(contract.token_statuses.get(&token.token_id).unwrap().verified, true);
+        assert_eq!(contract.token_is_valid(token.token_id.clone()), true);
         assert_eq!(contract.has_valid_token(accounts(3)), true);
 
         contract.update_expiry(token.token_id.clone(), Some(1000));
 
         assert_eq!(contract.token_expiry(token.token_id.clone()), Some(1000));
         assert_eq!(contract.token_statuses.get(&token.token_id).unwrap().verified, true);
+        assert_eq!(contract.token_is_valid(token.token_id.clone()), false);
         assert_eq!(contract.has_valid_token(accounts(3)), false);
 
         contract.update_expiry(token.token_id.clone(), Some(9000000000));
 
         assert_eq!(contract.token_expiry(token.token_id.clone()), Some(9000000000));
         assert_eq!(contract.token_statuses.get(&token.token_id).unwrap().verified, true);
+        assert_eq!(contract.token_is_valid(token.token_id.clone()), true);
         assert_eq!(contract.has_valid_token(accounts(3)), true);
 
         contract.set_verified_token(token.token_id.clone(), false);
 
         assert_eq!(contract.token_expiry(token.token_id.clone()), Some(9000000000));
         assert_eq!(contract.token_statuses.get(&token.token_id).unwrap().verified, false);
+        assert_eq!(contract.token_is_valid(token.token_id.clone()), false);
         assert_eq!(contract.has_valid_token(accounts(3)), false);
 
         contract.authorize_mint_with_code(789, accounts(3), sample_token_metadata("other".to_string()), None, 0, DEFAULT_TIER.to_string());
@@ -653,7 +657,10 @@ mod tests {
             .predecessor_account_id(accounts(3))
             .build());
 
-        contract.mint_with_code(789);
+        let token_new = contract.mint_with_code(789);
+
+        assert_eq!(contract.token_is_valid(token.token_id.clone()), false);
+        assert_eq!(contract.token_is_valid(token_new.token_id.clone()), true);
 
         // default is valid
         assert_eq!(contract.has_valid_token(accounts(3)), true);
