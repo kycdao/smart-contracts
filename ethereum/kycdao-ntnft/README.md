@@ -92,6 +92,9 @@ Keys used by the console for non-local chains will come from `test_mnemonic.txt`
 ## Retrieving balance from contract
 When users make payments to the contract these assets (such as MATIC) are stored in the Proxy contract itself.
 
-An address with the `OWNER` role can then run the following function to send the current balance of the contract to a specified address:
+An address with the `OWNER` role can set the safe address with the following function:
+`function setSafeAddress(address payable recipient_) public;`
 
-`function sendBalanceTo(address payable recipient_) public;`
+Then anyone can run the following function to send the current balance of the contract to the stored safe address:
+
+`function sendBalanceToSafe() public;`

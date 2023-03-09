@@ -86,7 +86,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     event StorageVersionUpdated(string newVersion);
 
     /*****************
-    START Version 0.4.2 VARIABLE DECLARATION
+    START Version 0.4.3 VARIABLE DECLARATION
     *****************/
 
     address payable public safeAddress;
@@ -98,7 +98,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
     /// @dev Current version of this smart contract
     function version() public pure returns (string memory) {
-        return "0.4.2";
+        return "0.4.3";
     }
 
     /// @dev This implementation contract shouldn't be initialized directly
@@ -372,6 +372,7 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
 
     ///@dev for retrieving all payments sent to contract
     function sendBalanceToSafe() public {
+        require(safeAddress != address(0), "Safe address is not initialized!");
         safeAddress.transfer(address(this).balance);
     }
 
