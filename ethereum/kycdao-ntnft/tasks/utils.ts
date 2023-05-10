@@ -172,11 +172,16 @@ async function deployPriceFeed(hre:any): Promise<string> {
         await priceFeed.deployTransaction.wait(5)
 
         console.log('Verifying source...')
-        await hre.run("verify:verify", {
-            address: priceFeed.address,
-            contract: `contracts/PriceFeed.sol:PriceFeed`,
-            constructorArguments: priceFeedDeployArgs(priceFeedConf)
-        })
+        try {
+            await hre.run("verify:verify", {
+                address: priceFeed.address,
+                contract: `contracts/PriceFeed.sol:PriceFeed`,
+                constructorArguments: priceFeedDeployArgs(priceFeedConf)
+            })
+        } catch (e) {
+            console.log(e.message)
+            console.log('Failed to verify source, continuing...')
+        }
 
         return priceFeed.address
     }
@@ -229,10 +234,15 @@ async function deployLogic(hre:any, contract:string): Promise<string> {
         await deployedLogic.deployTransaction.wait(5)
 
         console.log('Verifying source...')
-        await hre.run("verify:verify", {
-            address: deployedLogicAddr,
-            contract: `contracts/${contract}.sol:${contract}`
-        })        
+        try {
+            await hre.run("verify:verify", {
+                address: deployedLogicAddr,
+                contract: `contracts/${contract}.sol:${contract}`
+            })
+        } catch (e) {
+            console.log(e.message)
+            console.log('Failed to verify source, continuing...')
+        }        
     }
 
     return deployedLogicAddr

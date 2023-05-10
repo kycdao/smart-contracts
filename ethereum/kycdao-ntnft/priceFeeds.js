@@ -30,5 +30,9 @@ module.exports = {
     arbitrumTestnet: {
         priceFeedType: 'CHAINLINK',
         address: '0x62CAe0FA2da220f43a51F86Db2EDb36DcA9A5A08'
-    }            
+    },
+    baseTestnet: {
+        priceFeedType: 'CHAINLINK',
+        address: '0xcD2A119bD1F7DF95d706DE6F2057fDD45A0503E2'
+    }                
 }
