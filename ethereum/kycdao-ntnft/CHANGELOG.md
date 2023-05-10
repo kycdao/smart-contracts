@@ -8,6 +8,14 @@ NOTE: This CHANGELOG tracks changes to both contracts covered by kycDAO: **kycDA
 
 ## [Unreleased]
 
+## kycDAONTNFT [0.4.3] - 2023-03-07
+### Added
+- Added `safeAddress` variable to store multisig safe address, can be modified with the new `setSafeAddress` function
+- Renamed `sendBalanceTo` to `sendBalanceToSafe`, made it callable by anyone
+
+## kycDAONTNFT [0.4.2] - 2023-03-07
+- no changes in Solidity contract
+
 ## kycDAONTNFT [0.4.1] - 2022-12-20
 ### Added
 - Added a variable `storageVersion` which records the current version of the contract's stored variables, used when running `_migrate`

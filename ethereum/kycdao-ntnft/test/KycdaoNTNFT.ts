@@ -14,7 +14,7 @@ import { BigNumber } from 'ethers'
 
 use(solidity)
 
-const expectedVersion = '0.4.1'
+const expectedVersion = '0.4.3'
 
 const zeroAddress = '0x0000000000000000000000000000000000000000'
 
@@ -663,14 +663,20 @@ describe.only('KycdaoNtnft Membership', function () {
     it('sends balance to an address given', async function () {
       await memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
       await memberNftAsAnyone.mintWithCode(456, {value: expectedMintCostOneYear})
-      const initialBal = await ethers.provider.getBalance(anyone.address)
-      await memberNftAsOwner.sendBalanceTo(anyone.address)
-      const finalBal = await ethers.provider.getBalance(anyone.address)
+      const initialBal = await ethers.provider.getBalance(receiver.address)
+      await memberNftAsOwner.setSafeAddress(receiver.address)
+      await memberNftAsAnyone.sendBalanceToSafe()
+      const finalBal = await ethers.provider.getBalance(receiver.address)
       expect(finalBal).to.equal(initialBal.add(expectedMintCostOneYear))
     })
 
     it('fails when not called by owner', async function () {
-      await expect(memberNftAsAnyone.sendBalanceTo(anyone.address)).to.be.revertedWith('!owner')
+      await expect(memberNftAsAnyone.setSafeAddress(anyone.address)).to.be.revertedWith('!owner')
+    })
+
+    it('fails when safe address is zero', async function () {
+      await memberNftAsOwner.setSafeAddress(zeroAddress)
+      await expect(memberNftAsAnyone.sendBalanceToSafe()).to.be.revertedWith('Safe address is not initialized!')
     })
     
   })

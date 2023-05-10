@@ -86,13 +86,19 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     event StorageVersionUpdated(string newVersion);
 
     /*****************
+    START Version 0.4.3 VARIABLE DECLARATION
+    *****************/
+
+    address payable public safeAddress;
+
+    /*****************
     NOTICE: To ensure upgradeability, all NEW variables must be declared below.
     To keep track, ensure to add a version tracker to the start of the new variables declared
     *****************/
 
     /// @dev Current version of this smart contract
     function version() public pure returns (string memory) {
-        return "0.4.1";
+        return "0.4.3";
     }
 
     /// @dev This implementation contract shouldn't be initialized directly
@@ -365,8 +371,9 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     }
 
     ///@dev for retrieving all payments sent to contract
-    function sendBalanceTo(address payable recipient_) public onlyOwner {
-        recipient_.transfer(address(this).balance);
+    function sendBalanceToSafe() public {
+        require(safeAddress != address(0), "Safe address is not initialized!");
+        safeAddress.transfer(address(this).balance);
     }
 
     /*****************
@@ -394,6 +401,12 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     /// @param address_ address the address of the price feed
     function setPriceFeed(address address_) external onlyOwner {
         nativeUSDPriceFeed = IPriceFeed(address_);
+    }
+
+    /// @notice Set the address of the multisig safe to send balance to
+    /// @param address_ address the address of the safe
+    function setSafeAddress(address payable address_) external onlyOwner {
+        safeAddress = address_;
     }
 
     /*****************
