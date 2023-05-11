@@ -60,7 +60,7 @@ describe.only('KycdaoNtnft Membership with GSN', function () {
         const ChainlinkPriceFeedDeployed = await TestChainlinkPriceFeedAbstract.deploy(initPriceFeedValChainlink)
         await ChainlinkPriceFeedDeployed.deployed()
     
-        const PriceFeedDeployed = await PriceFeedAbstract.deploy(ChainlinkPriceFeedDeployed.address, PriceFeedType.CHAINLINK, '', '')
+        const PriceFeedDeployed = await PriceFeedAbstract.deploy(ChainlinkPriceFeedDeployed.address, PriceFeedType.CHAINLINK, '', '', '')
         await PriceFeedDeployed.deployed()
     
         const KycdaoNTNFTDeployed = await KycdaoNTNFTAbstract.deploy()

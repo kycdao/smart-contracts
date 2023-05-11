@@ -7,7 +7,7 @@ import { HttpNetworkConfig, HttpNetworkHDAccountsConfig } from 'hardhat/types';
 //       to ensure the compile runs first
 // import { ProxyUUPS } from '../src/types/contracts/ProxyUUPS'
 import { checkGasPrice, setGasPriceIfReq, removeDebugXdeployResult, 
-    asPrivateKey, getXdeployResult, deployLogic, deployPriceFeed } from  './utils'
+    getPrivateKey, getXdeployResult, deployLogic, deployPriceFeed } from  './utils'
 
 /**
  * TASK IMPLEMENTATION
@@ -38,16 +38,9 @@ task("deploy", "Deploys the proxy and logic contract (using xdeploy) to a networ
         console.log('Removing old xdeploy debug result')
         removeDebugXdeployResult(hre)
 
-        // Check if we're using private keys directly or a seed phrase in accounts
+        // Get private key for xdeploy
         const networkConf = hre.network.config as HttpNetworkConfig
-        let privateKey: string = (() => {
-            if (Array.isArray(networkConf.accounts)) {
-                return networkConf.accounts[0]
-            } else {
-                const netAccts = networkConf.accounts as HttpNetworkHDAccountsConfig
-                return asPrivateKey(netAccts.mnemonic)
-            }
-        })()
+        let privateKey = getPrivateKey(hre)
 
         hre.config.xdeploy = {
             contract: "ProxyUUPS",

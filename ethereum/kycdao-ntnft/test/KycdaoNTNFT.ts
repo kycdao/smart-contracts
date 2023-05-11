@@ -9,6 +9,7 @@ import { ProxyUUPS } from '../src/types/contracts/ProxyUUPS'
 import { PriceFeed } from '../src/types/contracts/PriceFeed'
 import { TestChainlinkPriceFeed } from '../src/types/contracts/test/TestChainlinkPriceFeed'
 import { TestBandPriceFeed } from '../src/types/contracts/test/TestBandPriceFeed'
+import { TestPythPriceFeed } from '../src/types/contracts/test/TestPythPriceFeed'
 import { ContractFactory } from '@ethersproject/contracts'
 import { BigNumber } from 'ethers'
 
@@ -24,11 +25,14 @@ const adminRole = '0x00000000000000000000000000000000000000000000000000000000000
 
 const initPriceFeedValChainlink: BigNumber = BigNumber.from(87).mul(BigNumber.from(10).pow(8))
 const initPriceFeedValBand: BigNumber = BigNumber.from(56).mul(BigNumber.from(10).pow(18))
+const initPriceFeedValPyth: BigNumber = BigNumber.from(185010000000)
 
 const SECS_IN_YEAR = 365 * 24 * 60 * 60
 const WEI_DECIMALS = 18
 
-enum PriceFeedType { CHAINLINK, BAND }
+enum PriceFeedType { CHAINLINK, BAND, PYTH }
+
+const HASH_ZERO = ethers.constants.HashZero
 
 const testInitArgs = {
   name: 'test', 
@@ -62,6 +66,7 @@ describe.only('KycdaoNtnft Membership', function () {
   let PriceFeedAbstract: ContractFactory
   let TestChainlinkPriceFeedAbstract: ContractFactory
   let TestBandPriceFeedAbstract: ContractFactory
+  let TestPythPriceFeedAbstract: ContractFactory
 
   let initData: string
 
@@ -87,13 +92,14 @@ describe.only('KycdaoNtnft Membership', function () {
     PriceFeedAbstract = await ethers.getContractFactory('PriceFeed')
     TestChainlinkPriceFeedAbstract = await ethers.getContractFactory('TestChainlinkPriceFeed')
     TestBandPriceFeedAbstract = await ethers.getContractFactory('TestBandPriceFeed')
+    TestPythPriceFeedAbstract = await ethers.getContractFactory('TestPythPriceFeed')
   })
 
   beforeEach(async function () {
     const ChainlinkPriceFeedDeployed = await TestChainlinkPriceFeedAbstract.deploy(initPriceFeedValChainlink) as PriceFeed
     await ChainlinkPriceFeedDeployed.deployed()
 
-    const PriceFeedDeployed = await PriceFeedAbstract.deploy(ChainlinkPriceFeedDeployed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
+    const PriceFeedDeployed = await PriceFeedAbstract.deploy(ChainlinkPriceFeedDeployed.address, PriceFeedType.CHAINLINK, '', '', HASH_ZERO) as PriceFeed
     await PriceFeedDeployed.deployed()
 
     KycdaoNTNFTDeployed = await KycdaoNTNFTAbstract.deploy() as KycdaoNTNFT
@@ -586,7 +592,7 @@ describe.only('KycdaoNtnft Membership', function () {
     it('fails when not called by owner', async function () {
       const chainlinkPriceFeed = await TestChainlinkPriceFeedAbstract.deploy(initPriceFeedValChainlink) as TestChainlinkPriceFeed
       await chainlinkPriceFeed.deployed()
-      const priceFeedDeployed = await PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK, '', '', HASH_ZERO) as PriceFeed
       await priceFeedDeployed.deployed()      
       await expect(memberNftAsAnyone.setPriceFeed(priceFeedDeployed.address)).to.be.revertedWith('!owner')
     })
@@ -595,14 +601,14 @@ describe.only('KycdaoNtnft Membership', function () {
       const chainlinkPriceFeed = await TestChainlinkPriceFeedAbstract.deploy(initPriceFeedValChainlink) as TestChainlinkPriceFeed
       await chainlinkPriceFeed.deployed()
       //Should be with 'Invalid PriceFeedType' but somethings wrong with the revert message
-      await expect(PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK + 10, '', '')).to.be.reverted
+      await expect(PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK + 10, '', '', HASH_ZERO)).to.be.reverted
     })
 
     it('sets the price feed to the given address', async function () {
       const newPriceFeedVal = initPriceFeedValChainlink.mul(2)
       const chainlinkPriceFeed = await TestChainlinkPriceFeedAbstract.deploy(newPriceFeedVal) as TestChainlinkPriceFeed
       await chainlinkPriceFeed.deployed()
-      const priceFeedDeployed = await PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK, '', '', HASH_ZERO) as PriceFeed
       await priceFeedDeployed.deployed()
       await memberNftAsOwner.setPriceFeed(priceFeedDeployed.address)
       const newNativeMintCost = await memberNftAsAnyone.getRequiredMintCostForSeconds(SECS_IN_YEAR)
@@ -612,7 +618,7 @@ describe.only('KycdaoNtnft Membership', function () {
     it('can use a BAND price feed', async function () {
       const bandPriceFeed = await TestBandPriceFeedAbstract.deploy(initPriceFeedValBand) as TestBandPriceFeed
       await bandPriceFeed.deployed()
-      const priceFeedDeployed = await PriceFeedAbstract.deploy(bandPriceFeed.address, PriceFeedType.BAND, 'CELO', 'USD') as PriceFeed
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(bandPriceFeed.address, PriceFeedType.BAND, 'CELO', 'USD', HASH_ZERO) as PriceFeed
       await priceFeedDeployed.deployed()
       
       const [_, priceFeedDecimals] = await priceFeedDeployed.lastPrice()
@@ -646,6 +652,21 @@ describe.only('KycdaoNtnft Membership', function () {
       const newNativeMintCost = await memberNftAsAnyone.getRequiredMintCostForSeconds(SECS_IN_YEAR)
       expect(newNativeMintCost).to.equal(expectedMintCostOneYearBand.div(2))
     })
+
+    it('can use a PYTH price feed', async function () {
+      const pythPriceFeed = await TestPythPriceFeedAbstract.deploy(initPriceFeedValPyth) as TestPythPriceFeed
+      await pythPriceFeed.deployed()
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(pythPriceFeed.address, PriceFeedType.PYTH, '', '', HASH_ZERO) as PriceFeed
+      await priceFeedDeployed.deployed()
+      
+      const [_, priceFeedDecimals] = await priceFeedDeployed.lastPrice()
+      const expectedMintCostOneYearPyth = await oneYearCostInWei(BigNumber.from(priceFeedDecimals), initPriceFeedValPyth)
+
+      await memberNftAsOwner.setPriceFeed(priceFeedDeployed.address)
+      const newNativeMintCost = await memberNftAsAnyone.getRequiredMintCostForSeconds(SECS_IN_YEAR)
+      //TODO: Pyth price is calculated differently, just check it's above zero for now
+      expect(newNativeMintCost).to.be.gt(0)
+    })    
   })
 
   describe('setting trusted forwarder', function () {

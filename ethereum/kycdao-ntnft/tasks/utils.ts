@@ -5,14 +5,31 @@ import fetch from 'node-fetch'
 import { NETWORKS_MANUAL_GAS, NETWORK_CONGESTION_THRESHOLDS } from './constants'
 import readline from 'readline'
 import { ContractFactory } from '@ethersproject/contracts'
+import { Wallet, utils } from "zksync-web3";
+import { HardhatRuntimeEnvironment, HttpNetworkHDAccountsConfig } from "hardhat/types";
+import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
+import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-deploy/dist/types';
+
+
 const priceFeeds = require('../priceFeeds')
-enum PriceFeedType { CHAINLINK, BAND }
+enum PriceFeedType { CHAINLINK, BAND, PYTH }
+const HASH_ZERO = ethers.constants.HashZero
 
 /**
  * UTILITY FUNCTIONS
  */
 
- function asPrivateKey(mnemonic: string) {
+function getPrivateKey(hre: HardhatRuntimeEnvironment) {
+    const networkConf = hre.network.config
+    if (Array.isArray(networkConf.accounts)) {
+        return networkConf.accounts[0].toString()
+    } else {
+        const netAccts = networkConf.accounts as HttpNetworkHDAccountsConfig
+        return asPrivateKey(netAccts.mnemonic)
+    }
+}
+
+function asPrivateKey(mnemonic: string) {
     let mnemonicWallet = ethers.Wallet.fromMnemonic(mnemonic)
     return mnemonicWallet.privateKey
 }
@@ -140,11 +157,21 @@ async function checkGasPrice(hre:any) {
     }    
 }
 
-async function deployPriceFeed(hre:any): Promise<string> {
+function getZkDeployer(hre:HardhatRuntimeEnvironment) {
+    const privateKey = getPrivateKey(hre)
+    const wallet = new Wallet(privateKey)  
+    return new Deployer(hre, wallet)
+}
+
+async function deployPriceFeed(hre:HardhatRuntimeEnvironment): Promise<string> {
     console.log('Looking for existing price feed deploy with same bytecode...')
-    const priceFeedContract = await hre.ethers.getContractFactory("PriceFeed")
+
+    const zkDeployer = getZkDeployer(hre)
+    const priceFeedContract = hre.network.zksync ? 
+                                await zkDeployer.loadArtifact("PriceFeed")
+                                : await hre.ethers.getContractFactory("PriceFeed")
+
     const priceFeedDeployResult = getPriceFeedDeployResult(hre)
-    
     if (priceFeedDeployResult && priceFeedDeployResult.bytecode == priceFeedContract.bytecode) {
         console.log('Found existing price feed deploy with same bytecode, skipping deploy...')
         return priceFeedDeployResult.address
@@ -157,9 +184,13 @@ async function deployPriceFeed(hre:any): Promise<string> {
         }
 
         await setGasPriceIfReq(hre)
-        console.log(`Deploying price feed ${priceFeedConf.priceFeedType} at ${priceFeedConf.address}...`)
-        const priceFeed = await priceFeedContract.deploy(...priceFeedDeployArgs(priceFeedConf))
-        await priceFeed.deployed()
+        console.log(`Deploying new price feed for type: ${priceFeedConf.priceFeedType} with addr: ${priceFeedConf.address}...`)
+        const deployArgs = priceFeedDeployArgs(priceFeedConf)
+        // Check type of priceFeedContract
+        const priceFeed = priceFeedContract instanceof ContractFactory ?
+                            await (await priceFeedContract.deploy(...deployArgs)).deployed()
+                            : await zkDeployer.deploy(priceFeedContract, deployArgs)
+
         console.log(`PriceFeed deployed to: ${priceFeed.address}`)
         console.log('Saving price feed deploy to result file...')
         const result = {
@@ -172,11 +203,16 @@ async function deployPriceFeed(hre:any): Promise<string> {
         await priceFeed.deployTransaction.wait(5)
 
         console.log('Verifying source...')
-        await hre.run("verify:verify", {
-            address: priceFeed.address,
-            contract: `contracts/PriceFeed.sol:PriceFeed`,
-            constructorArguments: priceFeedDeployArgs(priceFeedConf)
-        })
+        try {
+            await hre.run("verify:verify", {
+                address: priceFeed.address,
+                contract: `contracts/PriceFeed.sol:PriceFeed`,
+                constructorArguments: priceFeedDeployArgs(priceFeedConf)
+            })
+        } catch (e) {
+            console.log(e.message)
+            console.log('Failed to verify source, continuing...')
+        }
 
         return priceFeed.address
     }
@@ -184,17 +220,23 @@ async function deployPriceFeed(hre:any): Promise<string> {
 
 function priceFeedDeployArgs(priceFeedConf: any) {
     if (priceFeedConf.priceFeedType == 'CHAINLINK') {
-        return [priceFeedConf.address, PriceFeedType.CHAINLINK, '', '']
+        return [priceFeedConf.address, PriceFeedType.CHAINLINK, '', '', HASH_ZERO]
     } else if (priceFeedConf.priceFeedType == 'BAND') {
-        return [priceFeedConf.address, PriceFeedType.BAND, priceFeedConf.base, priceFeedConf.quote]
+        return [priceFeedConf.address, PriceFeedType.BAND, priceFeedConf.base, priceFeedConf.quote, HASH_ZERO]
+    } else if (priceFeedConf.priceFeedType == 'PYTH') {
+        return [priceFeedConf.address, PriceFeedType.PYTH, '', '', priceFeedConf.priceFeedId]
     } else {
         throw new Error(`Unknown price feed type: ${priceFeedConf.priceFeedType}`)
     }
 }
 
-async function deployLogic(hre:any, contract:string): Promise<string> {
+async function deployLogic(hre:HardhatRuntimeEnvironment, contract:string): Promise<string> {
     console.log('Looking for existing logic deploy with same bytecode...')
-    const logicContract = (await hre.ethers.getContractFactory(contract)) as ContractFactory
+    const zkDeployer = getZkDeployer(hre)
+    const logicContract = hre.network.zksync ?
+                            await zkDeployer.loadArtifact(contract)
+                            : await hre.ethers.getContractFactory(contract)
+
     const logicDeploy = getLogicDeployResult(hre, contract)
     
     let deployedLogicAddr: string
@@ -206,7 +248,9 @@ async function deployLogic(hre:any, contract:string): Promise<string> {
         console.log('No deployment found with same bytecode')
         console.log(`Deploying logic contract: ${contract}, to network: ${hre.network.name}...`)
         await setGasPriceIfReq(hre)
-        const deployedLogic = await logicContract.deploy()
+        const deployedLogic = logicContract instanceof ContractFactory ?
+                                await (await logicContract.deploy()).deployed()
+                                : await zkDeployer.deploy(logicContract)
         console.log(`Started deployment tx: ${deployedLogic.deployTransaction.hash}, waiting for confirmations...`)
         console.log({
             gasPrice: deployedLogic.deployTransaction.gasPrice,
@@ -229,10 +273,15 @@ async function deployLogic(hre:any, contract:string): Promise<string> {
         await deployedLogic.deployTransaction.wait(5)
 
         console.log('Verifying source...')
-        await hre.run("verify:verify", {
-            address: deployedLogicAddr,
-            contract: `contracts/${contract}.sol:${contract}`
-        })        
+        try {
+            await hre.run("verify:verify", {
+                address: deployedLogicAddr,
+                contract: `contracts/${contract}.sol:${contract}`
+            })
+        } catch (e) {
+            console.log(e.message)
+            console.log('Failed to verify source, continuing...')
+        }        
     }
 
     return deployedLogicAddr
@@ -241,11 +290,12 @@ async function deployLogic(hre:any, contract:string): Promise<string> {
 export {
     checkGasPrice,
     setGasPriceIfReq,
-    asPrivateKey,
+    getPrivateKey,
     getXdeployResult,
     getLogicDeployResult,
     removeDebugXdeployResult,
     logicDeployPath,
     deployLogic,
-    deployPriceFeed
+    deployPriceFeed,
+    getZkDeployer
 }

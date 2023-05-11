@@ -30,5 +30,14 @@ module.exports = {
     arbitrumTestnet: {
         priceFeedType: 'CHAINLINK',
         address: '0x62CAe0FA2da220f43a51F86Db2EDb36DcA9A5A08'
-    }            
+    },
+    baseTestnet: {
+        priceFeedType: 'CHAINLINK',
+        address: '0xcD2A119bD1F7DF95d706DE6F2057fDD45A0503E2'
+    },
+    zkTestnet: {
+        priceFeedType: 'PYTH',
+        address: '0xC38B1dd611889Abc95d4E0a472A667c3671c08DE',
+        priceFeedId: '0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace'
+    }                     
 }
