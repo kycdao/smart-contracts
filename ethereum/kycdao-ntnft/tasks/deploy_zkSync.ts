@@ -37,7 +37,7 @@ task("deploy_zkSync", "Deploys the proxy and logic contract to a zkSync network"
         const proxyDeployed = await zkDeployer.deploy(proxyContractAbstract)
 
         // Set the proxy to the new logic contract
-        console.log('Proxy deployed\n\n')
+        console.log(`Proxy deployed to: ${proxyDeployed.address}\n\n`)
         console.log('Setting proxy to logic contract and running initialize...')
         
         const initArgs = args[contract]

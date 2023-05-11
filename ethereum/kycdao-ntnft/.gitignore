@@ -13,3 +13,5 @@ build/*
 .openzeppelin/*
 *.sarif
 zksolc
+artifacts-zk
+cache-zk
