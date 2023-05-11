@@ -11,8 +11,10 @@ import 'dotenv/config'
 import "xdeployer"
 import "@matterlabs/hardhat-zksync-solc"
 import "@matterlabs/hardhat-zksync-deploy"
+import '@matterlabs/hardhat-zksync-verify'
 import "./tasks/testUpgrade"
 import "./tasks/deploy"
+import "./tasks/deploy_zkSync"
 import "./tasks/upgrade"
 
 import * as fs from 'fs'
@@ -56,7 +58,7 @@ const config: HardhatUserConfig = {
     version: "1.3.10",
     compilerSource: "binary",
     settings: {
-      //compilerPath: "zksolc",  // optional. Ignored for compilerSource "docker". Can be used if compiler is located in a specific folder
+      // compilerPath: "./zksolc/zksolc-linux-amd64-musl-v1.3.10",  // optional. Ignored for compilerSource "docker". Can be used if compiler is located in a specific folder
       libraries:{}, // optional. References to non-inlinable libraries
       isSystem: false, // optional.  Enables Yul instructions available only for zkSync system contracts and libraries
       forceEvmla: false, // optional. Falls back to EVM legacy assembly if there is a bug with Yul
@@ -145,8 +147,12 @@ const config: HardhatUserConfig = {
     },
     zkTestnet: {
       url: "https://testnet.era.zksync.dev", // The testnet RPC URL of zkSync Era network.
+      accounts: {
+        mnemonic: test_mnemonic(),
+      },      
       ethNetwork: "goerli", // The Ethereum Web3 RPC URL, or the identifier of the network (e.g. `mainnet` or `goerli`)
       zksync: true,
+      verifyURL: 'https://zksync2-testnet-explorer.zksync.dev/contract_verification', // The URL of the zkSync contract verifier.
     }        
   },
   typechain: {

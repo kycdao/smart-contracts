@@ -37,6 +37,8 @@ const testVerifUID = 'uid1234'
 
 enum PriceFeedType { CHAINLINK, BAND }
 
+const HASH_ZERO = ethers.constants.HashZero
+
 async function blockTime() {
   const block = await ethers.provider.getBlock('latest')
   return block.timestamp
@@ -83,7 +85,7 @@ describe.only('KycdaoNTNFTAccreditation Membership', function () {
     const ChainlinkPriceFeedDeployed = await TestChainlinkPriceFeedAbstract.deploy(initPriceFeedValChainlink) as PriceFeed
     await ChainlinkPriceFeedDeployed.deployed()
 
-    const PriceFeedDeployed = await PriceFeedAbstract.deploy(ChainlinkPriceFeedDeployed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
+    const PriceFeedDeployed = await PriceFeedAbstract.deploy(ChainlinkPriceFeedDeployed.address, PriceFeedType.CHAINLINK, '', '', HASH_ZERO) as PriceFeed
     await PriceFeedDeployed.deployed()
 
     KycdaoNTNFTAccredDeployed = await KycdaoNTNFTAccredAbstract.deploy() as KycdaoNTNFTAccreditation
@@ -569,7 +571,7 @@ describe.only('KycdaoNTNFTAccreditation Membership', function () {
     it('fails when not called by owner', async function () {
       const chainlinkPriceFeed = await TestChainlinkPriceFeedAbstract.deploy(initPriceFeedValChainlink) as TestChainlinkPriceFeed
       await chainlinkPriceFeed.deployed()
-      const priceFeedDeployed = await PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK, '', '', HASH_ZERO) as PriceFeed
       await priceFeedDeployed.deployed()      
       await expect(memberNftAsAnyone.setPriceFeed(priceFeedDeployed.address)).to.be.revertedWith('!owner')
     })
@@ -578,14 +580,14 @@ describe.only('KycdaoNTNFTAccreditation Membership', function () {
       const chainlinkPriceFeed = await TestChainlinkPriceFeedAbstract.deploy(initPriceFeedValChainlink) as TestChainlinkPriceFeed
       await chainlinkPriceFeed.deployed()
       //Should be with 'Invalid PriceFeedType' but somethings wrong with the revert message
-      await expect(PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK + 10, '', '')).to.be.reverted
+      await expect(PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK + 10, '', '', HASH_ZERO)).to.be.reverted
     })
 
     it('sets the price feed to the given address', async function () {
       const newPriceFeedVal = initPriceFeedValChainlink.mul(2)
       const chainlinkPriceFeed = await TestChainlinkPriceFeedAbstract.deploy(newPriceFeedVal) as TestChainlinkPriceFeed
       await chainlinkPriceFeed.deployed()
-      const priceFeedDeployed = await PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK, '', '') as PriceFeed
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(chainlinkPriceFeed.address, PriceFeedType.CHAINLINK, '', '', HASH_ZERO) as PriceFeed
       await priceFeedDeployed.deployed()
       await memberNftAsOwner.setPriceFeed(priceFeedDeployed.address)
       const newNativeMintCost = await memberNftAsAnyone.getMintPriceNative()
@@ -596,7 +598,7 @@ describe.only('KycdaoNTNFTAccreditation Membership', function () {
       const newPriceFeedVal = initPriceFeedValBand.mul(2)
       const bandPriceFeed = await TestBandPriceFeedAbstract.deploy(newPriceFeedVal) as TestBandPriceFeed
       await bandPriceFeed.deployed()
-      const priceFeedDeployed = await PriceFeedAbstract.deploy(bandPriceFeed.address, PriceFeedType.BAND, 'CELO', 'USD') as PriceFeed
+      const priceFeedDeployed = await PriceFeedAbstract.deploy(bandPriceFeed.address, PriceFeedType.BAND, 'CELO', 'USD', HASH_ZERO) as PriceFeed
       await priceFeedDeployed.deployed()
       await memberNftAsOwner.setPriceFeed(priceFeedDeployed.address)
       const newNativeMintCost = await memberNftAsAnyone.getMintPriceNative()

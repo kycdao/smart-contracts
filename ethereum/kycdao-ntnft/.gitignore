@@ -12,3 +12,4 @@ coverage.json
 build/*
 .openzeppelin/*
 *.sarif
+zksolc
