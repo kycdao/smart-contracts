@@ -8,6 +8,11 @@ NOTE: This CHANGELOG tracks changes to both contracts covered by kycDAO: **kycDA
 
 ## [Unreleased]
 
+## kycDAONTNFT [0.4.4] - 2023-05-17
+### Added
+- Added `sanctionsList` variable to store address of sanction list, can be modified with the new `setSanctionList` function
+- Changed `hasValidToken` to check if the given address is on the sanction list, if the `sanctionsList` has been set 
+
 ## kycDAONTNFT [0.4.3] - 2023-03-07
 ### Added
 - Added `safeAddress` variable to store multisig safe address, can be modified with the new `setSafeAddress` function

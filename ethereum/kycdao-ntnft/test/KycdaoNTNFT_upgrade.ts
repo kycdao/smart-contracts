@@ -10,12 +10,13 @@ import { ProxyUUPS } from '../src/types/contracts/ProxyUUPS'
 import { PriceFeed } from '../src/types/contracts/PriceFeed'
 import { TestChainlinkPriceFeed } from '../src/types/contracts/test/TestChainlinkPriceFeed'
 import { TestBandPriceFeed } from '../src/types/contracts/test/TestBandPriceFeed'
+import { SanctionsList } from '../src/types/contracts/external/SanctionsList'
 import { ContractFactory } from '@ethersproject/contracts'
 import { BigNumber } from 'ethers'
 
 use(solidity)
 
-const expectedVersion = '0.4.3'
+const expectedVersion = '0.4.4'
 
 const zeroAddress = '0x0000000000000000000000000000000000000000'
 
@@ -64,6 +65,7 @@ describe.only('KycdaoNtnft Membership for an upgraded contract', function () {
   let PriceFeedAbstract: ContractFactory
   let TestChainlinkPriceFeedAbstract: ContractFactory
   let TestBandPriceFeedAbstract: ContractFactory
+  let SanctionsListAbstract: ContractFactory
 
   let initData: string
 
@@ -104,6 +106,7 @@ describe.only('KycdaoNtnft Membership for an upgraded contract', function () {
     PriceFeedAbstract = await ethers.getContractFactory('PriceFeed')
     TestChainlinkPriceFeedAbstract = await ethers.getContractFactory('TestChainlinkPriceFeed')
     TestBandPriceFeedAbstract = await ethers.getContractFactory('TestBandPriceFeed')
+    SanctionsListAbstract = await ethers.getContractFactory('SanctionsList')
   })
 
   beforeEach(async function () {
@@ -526,6 +529,35 @@ describe.only('KycdaoNtnft Membership for an upgraded contract', function () {
         const tokenId = await memberNftAsAnyone.tokenOfOwnerByIndex(anyone.address, 0)
         expect(await memberNftAsAnyone.tokenTier(tokenId)).to.equal(testTier)
       })      
+    })
+
+    describe('checking status with a sanction list', function () {
+      it('Has valid token returns false if the address is on the sanction list', async function () {
+        const sanctionsList = await SanctionsListAbstract.deploy() as SanctionsList
+        await memberNftAsOwner.setSanctionsList(sanctionsList.address)
+
+        await memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
+        await memberNftAsAnyone.mintWithCode(456, {value: expectedMintCostOneYear})
+        expect(await memberNftAsAnyone.hasValidToken(anyone.address)).to.equal(true)
+
+        await sanctionsList.addToSanctionsList([anyone.address])
+        expect(await memberNftAsAnyone.hasValidToken(anyone.address)).to.equal(false)
+      })
+
+      it('Has valid token returns true if the address is not on the sanction list', async function () {
+        const sanctionsList = await SanctionsListAbstract.deploy() as SanctionsList
+        await memberNftAsOwner.setSanctionsList(sanctionsList.address)
+
+        await memberNftAsMinter.authorizeMintWithCode(456, anyone.address, testMetaUID, expiration, SECS_IN_YEAR, testTier)
+        await memberNftAsAnyone.mintWithCode(456, {value: expectedMintCostOneYear})
+        expect(await memberNftAsAnyone.hasValidToken(anyone.address)).to.equal(true)
+
+        await sanctionsList.addToSanctionsList([anyone.address])
+        expect(await memberNftAsAnyone.hasValidToken(anyone.address)).to.equal(false)
+
+        await sanctionsList.removeFromSanctionsList([anyone.address])
+        expect(await memberNftAsAnyone.hasValidToken(anyone.address)).to.equal(true)
+      })
     })
 
     describe('checking status for NON existing token', function () {

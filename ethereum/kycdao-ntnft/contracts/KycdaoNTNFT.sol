@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "@opengsn/contracts/src/BaseRelayRecipient.sol";
 import "./interfaces/IKycdaoNTNFT.sol";
 import "./interfaces/IPriceFeed.sol";
+import "./external/SanctionsList.sol";
 
 /// @title KycdaoNTNFT
 /// @dev Non-transferable NFT for KycDAO
@@ -92,13 +93,19 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     address payable public safeAddress;
 
     /*****************
+    START Version 0.4.4 VARIABLE DECLARATION
+    *****************/
+
+    SanctionsList public sanctionsList;
+
+    /*****************
     NOTICE: To ensure upgradeability, all NEW variables must be declared below.
     To keep track, ensure to add a version tracker to the start of the new variables declared
     *****************/
 
     /// @dev Current version of this smart contract
     function version() public pure returns (string memory) {
-        return "0.4.3";
+        return "0.4.4";
     }
 
     /// @dev This implementation contract shouldn't be initialized directly
@@ -290,7 +297,9 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
             uint tokenId = tokenOfOwnerByIndex(_addr, i);
             if (tokenStatuses[tokenId].expiry > block.timestamp
                 && tokenStatuses[tokenId].verified) {
-                    return true;
+                    // If the sanctions list is set, check the address is not on it
+                    return address(sanctionsList) == address(0) ||
+                        !sanctionsList.isSanctioned((_addr));
                 }
         }
 
@@ -407,6 +416,12 @@ contract KycdaoNTNFT is ERC721EnumerableUpgradeable, AccessControlUpgradeable, B
     /// @param address_ address the address of the safe
     function setSafeAddress(address payable address_) external onlyOwner {
         safeAddress = address_;
+    }
+
+    /// @notice Set the address of the sanctions list
+    /// @param address_ address of the sanctions list
+    function setSanctionsList(address address_) external onlyOwner {
+        sanctionsList = SanctionsList(address_);
     }
 
     /*****************
